@@ -50,6 +50,52 @@ if(${CMAKE_VERSION} VERSION_GREATER 2.7)
     mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
   endif()
 
+
+  # Now we set up the install, if required
+  if(GEANT4_INSTALL_DATA)
+    # Drive download and unpacking via ExternalProject
+    include(ExternalProject)
+    
+    # Define the known datasets as a list of tuples, tuple entries being
+    # colon separated
+    # Tuple entries:
+    # 0 : Directory Name
+    # 1 : Version
+    # 2 : Filename
+    # 3 : Filename Extension
+    # 4 : Environment Variable
+    # 5 : Marker for detecting existing install (expected file)
+    # 6 : Expected MD5 sum File (support only on CMake > ?)
+    #
+    # This is a mess (make note on rationalizing filename and
+    # Environment variable, e.g.
+    # name-version.tar.bz2 => env(G4_NAME_DATADIR)
+    #
+    # Could also supply this list as a text file to be read in
+    set(GEANT4_DATASETS
+      G4NDL:4.0:G4NDL:tar.gz:G4NEUTRONHPDATA:foobar:frob
+      G4EMLOW:6.26:G4EMLOW:tar.gz:G4LEDATA:foobar:frob
+      PhotonEvaporation:2.2:PhotonEvaporation:tar.gz:G4LEVELGAMMADATA:foobar:frob
+      RadioactiveDecay:3.4:G4RadioactiveDecay:tar.gz:G4RADIOACTIVEDATA:foobar:frob
+      G4ABLA:3.0:G4ABLA:tar.gz:G4ABLADATA:foobar:frob
+      G4NEUTRONXS:1.1:G4NEUTRONXS:tar.gz:G4NEUTRONXSDATA:foobar:frob
+      G4PII:1.3:G4PII:tar.gz:G4PIIDATA:foobar:frob
+      RealSurface:1.0:RealSurface:tar.gz:G4REALSURFACEDATA:foobar:frob)
+
+    foreach(_dataset ${GEANT4_DATASETS})
+      # Listify entry and extract parameters
+      string(REPLACE ":" ";" _tuple ${_dataset})
+      list(GET _tuple 0 _dataset_name)
+      list(GET _tuple 1 _dataset_version)
+      list(GET _tuple 2 _dataset_filename)
+      list(GET _tuple 3 _dataset_extension)
+      list(GET _tuple 4 _dataset_envvar)
+      list(GET _tuple 5 _dataset_marker)
+      list(GET _tuple 6 _dataset_md5sum)
+
+      message(STATUS "Checking for prior install of ${_dataset_name}")
+    endforeach()
+  endif()
 endif()
 
 #-----------------------------------------------------------------------
