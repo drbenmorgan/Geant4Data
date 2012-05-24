@@ -72,6 +72,9 @@ if(${CMAKE_VERSION} VERSION_GREATER 2.7)
     # name-version.tar.bz2 => env(G4_NAME_DATADIR)
     #
     # Could also supply this list as a text file to be read in
+    set(GEANT4_DATASETS_URL $ENV{HOME}/Downloads)
+    message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
+
     set(GEANT4_DATASETS
       G4NDL:4.0:G4NDL:tar.gz:G4NEUTRONHPDATA:foobar:frob
       G4EMLOW:6.26:G4EMLOW:tar.gz:G4LEDATA:foobar:frob
