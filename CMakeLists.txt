@@ -7,13 +7,13 @@
 #    (See accompanying file LICENSE_1_0.txt or copy at
 #          http://www.boost.org/LICENSE_1_0.txt)
 #-----------------------------------------------------------------------
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(Geant4Data)
 
 #-----------------------------------------------------------------------
 # Setup installation directories
 # TODO : Check which versions of CMake supply this module.
-include(GNUInstallDirs)
+include(GNUInstallDirs OPTIONAL)
 
 #-----------------------------------------------------------------------
 # CMake options for installing data
@@ -100,6 +100,69 @@ if(${CMAKE_VERSION} VERSION_GREATER 2.7)
     endforeach()
   endif()
 endif()
+
+#-----------------------------------------------------------------------
+# Try download scheme for CMake 2.6.4...
+#
+set(GEANT4_DATA_URL "file://$ENV{HOME}/Downloads")
+set(GEANT4_DATA_ARCHIVE "G4ABLA.3.0.tar.gz")
+set(GEANT4_DATA_DOWNLOAD_DIR Data/Downloads)
+set(TIMEOUT 1500)
+set(GEANT4_DATA_STAMPDIR ${PROJECT_BINARY_DIR}/Data)
+
+add_custom_target(Data ALL 
+  COMMENT "Data target"
+  DEPENDS unpack.stamp
+  VERBATIM)
+
+
+# - Download
+configure_file(DataDownload.cmake.in download.cmake @ONLY)
+add_custom_command(
+  OUTPUT download.stamp
+  COMMENT "test download"
+  COMMAND ${CMAKE_COMMAND} -P download.cmake
+  COMMAND ${CMAKE_COMMAND} -E touch download.stamp
+  VERBATIM
+  )
+
+# - Checksum
+configure_file(DataChecksum.cmake.in checksum.cmake @ONLY)
+add_custom_command(
+  OUTPUT checksum.stamp
+  COMMENT "test checksum"
+  COMMAND ${CMAKE_COMMAND} -P checksum.cmake
+  COMMAND ${CMAKE_COMMAND} -E touch checksum.stamp
+  DEPENDS download.stamp
+  VERBATIM
+  )
+
+# - Unpack
+add_custom_command(
+  OUTPUT unpack.stamp
+  COMMENT "test unpack"
+  COMMAND ${CMAKE_COMMAND} -E tar xz Downloads/${GEANT4_DATA_ARCHIVE}
+  COMMAND ${CMAKE_COMMAND} -E touch ${PROJECT_BINARY_DIR}/unpack.stamp
+  DEPENDS checksum.stamp
+  WORKING_DIRECTORY Data
+  VERBATIM
+  )
+#-----------------------------------------------------------------------
+# Function to setup downloads....
+# It has as arguments:
+#  Remote file
+#  Local file
+#  Timeout for download
+#  Expected MD5 of file 
+#  Which directory to unpack in
+function(geant4_add_data_download)
+  message(STATUS "geant4_add_data_download(${ARGN})")
+endfunction()
+
+
+geant4_add_data_download()
+geant4_add_data_download(remote local timout md5 dir)
+
 
 #-----------------------------------------------------------------------
 # Build the C++ data location/access API library and test programs

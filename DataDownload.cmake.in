@@ -1,0 +1,29 @@
+# - Template for download of Geant4 data library for CMake 2.6.4
+#
+#          Copyright Ben Morgan <bmorgan.warwick@gmail.com> 2012  
+# Distributed under the Boost Software License, Version 1.0.
+#    (See accompanying file LICENSE_1_0.txt or copy at
+#          http://www.boost.org/LICENSE_1_0.txt)
+
+message(STATUS "downloading @GEANT4_DATA_ARCHIVE@...")
+
+file(DOWNLOAD 
+  @GEANT4_DATA_URL@/@GEANT4_DATA_ARCHIVE@
+  @GEANT4_DATA_DOWNLOAD_DIR@/@GEANT4_DATA_ARCHIVE@
+  TIMEOUT @TIMEOUT@
+  STATUS _status
+  LOG _log)
+
+list(GET _status 0 _status_code)
+list(GET _status 1 _status_msg)
+
+if(NOT _status_code EQUAL 0)
+  message(FATAL_ERROR "error: downloading @GEANT4_DATA_ARCHIVE@ failed
+  status_code : ${_status_code}
+  status_msg  : ${_status_msg}
+  log : ${_log}"
+  )
+endif()
+
+message(STATUS "downloading @GEANT4_DATA_ARCHIVE@... done")
+
