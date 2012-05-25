@@ -24,8 +24,8 @@ include(GNUInstallDirs OPTIONAL)
 # 2 : Filename
 # 3 : Filename Extension
 # 4 : Environment Variable
-# 5 : Marker for detecting existing install (expected file)
-# 6 : Expected MD5 sum File (support only on CMake > ?)
+# 5 : Expected MD5 sum File
+# 6 : (NOTIMPLEMENTEDYET) Marker for detecting existing install (expected file)
 #
 # This is a mess (make note on rationalizing filename and
 # Environment variable, e.g.
@@ -36,25 +36,16 @@ set(GEANT4_DATASETS_URL $ENV{HOME}/Downloads)
 message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
 
 set(GEANT4_DATASETS
-  G4NDL:4.0:G4NDL:tar.gz:G4NEUTRONHPDATA:foobar:frob
-  G4EMLOW:6.26:G4EMLOW:tar.gz:G4LEDATA:foobar:frob
-  PhotonEvaporation:2.2:PhotonEvaporation:tar.gz:G4LEVELGAMMADATA:foobar:frob
-  RadioactiveDecay:3.4:G4RadioactiveDecay:tar.gz:G4RADIOACTIVEDATA:foobar:frob
-  G4ABLA:3.0:G4ABLA:tar.gz:G4ABLADATA:foobar:frob
-  G4NEUTRONXS:1.1:G4NEUTRONXS:tar.gz:G4NEUTRONXSDATA:foobar:frob
-  G4PII:1.3:G4PII:tar.gz:G4PIIDATA:foobar:frob
-  RealSurface:1.0:RealSurface:tar.gz:G4REALSURFACEDATA:foobar:frob)
-
-set(GEANT4_DATASETS_NEWSTYLE
-  6d23aff98e5706af1dd7fff397969f37:G4NDL.4.0.tar.gz
-  98cdca1024bf168c8f8ca1deb40f43b9:G4EMLOW.6.23.tar.gz
-  8010e7ce8a92564e38dd3418e6040563:G4PhotonEvaporation.2.2.tar.gz
-  a5b681048584631608ab0965b33c7959:G4RadioactiveDecay.3.4.tar.gz
-  d7049166ef74a592cb97df0ed4b757bd:G4ABLA.3.0.tar.gz
-  61ef3a05b56525db04e11820e3f603f1:G4NEUTRONXS.1.1.tar.gz
-  05f2471dbcdf1a2b17cbff84e8e83b37:G4PII.1.3.tar.gz
-  0dde95e00fcd3bcd745804f870bb6884:RealSurface.1.0.tar.gz
+  G4NDL/4.0/G4NDL/tar.gz/G4NEUTRONHPDATA/6d23aff98e5706af1dd7fff397969f37
+  G4EMLOW/6.26/G4EMLOW/tar.gz/G4LEDATA/98cdca1024bf168c8f8ca1deb40f43b9
+  PhotonEvaporation/2.2/PhotonEvaporation/tar.gz/G4LEVELGAMMADATA/a5b681048584631608ab0965b33c7959
+  RadioactiveDecay/3.4/G4RadioactiveDecay/tar.gz/G4RADIOACTIVEDATA/d7049166ef74a592cb97df0ed4b757bd
+  G4ABLA/3.0/G4ABLA/tar.gz/G4ABLADATA/61ef3a05b56525db04e11820e3f603f1
+  G4NEUTRONXS/1.1/G4NEUTRONXS/tar.gz/G4NEUTRONXSDATA/05f2471dbcdf1a2b17cbff84e8e83b37
+  G4PII/1.3/G4PII/tar.gz/G4PIIDATA/05f2471dbcdf1a2b17cbff84e8e83b37
+  RealSurface/1.0/RealSurface/tar.gz/G4REALSURFACEDATA/0dde95e00fcd3bcd745804f870bb6884
   )
+
 
 #-----------------------------------------------------------------------
 # CMake options for installing data
@@ -99,14 +90,13 @@ if(${CMAKE_VERSION} VERSION_GREATER 2.7)
     
     foreach(_dataset ${GEANT4_DATASETS})
       # Listify entry and extract parameters
-      string(REPLACE ":" ";" _tuple ${_dataset})
+      string(REPLACE "/" ";" _tuple ${_dataset})
       list(GET _tuple 0 _dataset_name)
       list(GET _tuple 1 _dataset_version)
       list(GET _tuple 2 _dataset_filename)
       list(GET _tuple 3 _dataset_extension)
       list(GET _tuple 4 _dataset_envvar)
-      list(GET _tuple 5 _dataset_marker)
-      list(GET _tuple 6 _dataset_md5sum)
+      list(GET _tuple 5 _dataset_md5sum)
 
       message(STATUS "Checking for prior install of ${_dataset_name}")
     endforeach()
