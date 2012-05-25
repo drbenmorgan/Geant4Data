@@ -16,6 +16,47 @@ project(Geant4Data)
 include(GNUInstallDirs OPTIONAL)
 
 #-----------------------------------------------------------------------
+# Define the known datasets as a list of tuples, tuple entries being
+# colon separated
+# Tuple entries:
+# 0 : Directory Name
+# 1 : Version
+# 2 : Filename
+# 3 : Filename Extension
+# 4 : Environment Variable
+# 5 : Marker for detecting existing install (expected file)
+# 6 : Expected MD5 sum File (support only on CMake > ?)
+#
+# This is a mess (make note on rationalizing filename and
+# Environment variable, e.g.
+# name-version.tar.bz2 => env(G4_NAME_DATADIR)
+#
+# Could also supply this list as a text file to be read in
+set(GEANT4_DATASETS_URL $ENV{HOME}/Downloads)
+message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
+
+set(GEANT4_DATASETS
+  G4NDL:4.0:G4NDL:tar.gz:G4NEUTRONHPDATA:foobar:frob
+  G4EMLOW:6.26:G4EMLOW:tar.gz:G4LEDATA:foobar:frob
+  PhotonEvaporation:2.2:PhotonEvaporation:tar.gz:G4LEVELGAMMADATA:foobar:frob
+  RadioactiveDecay:3.4:G4RadioactiveDecay:tar.gz:G4RADIOACTIVEDATA:foobar:frob
+  G4ABLA:3.0:G4ABLA:tar.gz:G4ABLADATA:foobar:frob
+  G4NEUTRONXS:1.1:G4NEUTRONXS:tar.gz:G4NEUTRONXSDATA:foobar:frob
+  G4PII:1.3:G4PII:tar.gz:G4PIIDATA:foobar:frob
+  RealSurface:1.0:RealSurface:tar.gz:G4REALSURFACEDATA:foobar:frob)
+
+set(GEANT4_DATASETS_NEWSTYLE
+  6d23aff98e5706af1dd7fff397969f37:G4NDL.4.0.tar.gz
+  98cdca1024bf168c8f8ca1deb40f43b9:G4EMLOW.6.23.tar.gz
+  8010e7ce8a92564e38dd3418e6040563:G4PhotonEvaporation.2.2.tar.gz
+  a5b681048584631608ab0965b33c7959:G4RadioactiveDecay.3.4.tar.gz
+  d7049166ef74a592cb97df0ed4b757bd:G4ABLA.3.0.tar.gz
+  61ef3a05b56525db04e11820e3f603f1:G4NEUTRONXS.1.1.tar.gz
+  05f2471dbcdf1a2b17cbff84e8e83b37:G4PII.1.3.tar.gz
+  0dde95e00fcd3bcd745804f870bb6884:RealSurface.1.0.tar.gz
+  )
+
+#-----------------------------------------------------------------------
 # CMake options for installing data
 # - Choose a directory under which to install the data.
 # - Choose which libraries to install.
@@ -56,35 +97,6 @@ if(${CMAKE_VERSION} VERSION_GREATER 2.7)
     # Drive download and unpacking via ExternalProject
     include(ExternalProject)
     
-    # Define the known datasets as a list of tuples, tuple entries being
-    # colon separated
-    # Tuple entries:
-    # 0 : Directory Name
-    # 1 : Version
-    # 2 : Filename
-    # 3 : Filename Extension
-    # 4 : Environment Variable
-    # 5 : Marker for detecting existing install (expected file)
-    # 6 : Expected MD5 sum File (support only on CMake > ?)
-    #
-    # This is a mess (make note on rationalizing filename and
-    # Environment variable, e.g.
-    # name-version.tar.bz2 => env(G4_NAME_DATADIR)
-    #
-    # Could also supply this list as a text file to be read in
-    set(GEANT4_DATASETS_URL $ENV{HOME}/Downloads)
-    message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
-
-    set(GEANT4_DATASETS
-      G4NDL:4.0:G4NDL:tar.gz:G4NEUTRONHPDATA:foobar:frob
-      G4EMLOW:6.26:G4EMLOW:tar.gz:G4LEDATA:foobar:frob
-      PhotonEvaporation:2.2:PhotonEvaporation:tar.gz:G4LEVELGAMMADATA:foobar:frob
-      RadioactiveDecay:3.4:G4RadioactiveDecay:tar.gz:G4RADIOACTIVEDATA:foobar:frob
-      G4ABLA:3.0:G4ABLA:tar.gz:G4ABLADATA:foobar:frob
-      G4NEUTRONXS:1.1:G4NEUTRONXS:tar.gz:G4NEUTRONXSDATA:foobar:frob
-      G4PII:1.3:G4PII:tar.gz:G4PIIDATA:foobar:frob
-      RealSurface:1.0:RealSurface:tar.gz:G4REALSURFACEDATA:foobar:frob)
-
     foreach(_dataset ${GEANT4_DATASETS})
       # Listify entry and extract parameters
       string(REPLACE ":" ";" _tuple ${_dataset})
@@ -110,6 +122,9 @@ set(GEANT4_DATA_DOWNLOAD_DIR Data/Downloads)
 set(TIMEOUT 1500)
 set(GEANT4_DATA_STAMPDIR ${PROJECT_BINARY_DIR}/Data)
 
+# - the target
+# Sort of works like EP, but that does something fancier with
+# ordering  - see the '${name}-complete' stamp
 add_custom_target(Data ALL 
   COMMENT "Data target"
   DEPENDS unpack.stamp
