@@ -11,9 +11,21 @@ cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(Geant4Data)
 
 #-----------------------------------------------------------------------
+# Check report of CMake version
+#
+message(STATUS "configuring with CMake ${CMAKE_VERSION}")
+
+
+#-----------------------------------------------------------------------
+# Project modules
+#
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+
+
+#-----------------------------------------------------------------------
 # Setup installation directories
-# TODO : Check which versions of CMake supply this module.
-include(GNUInstallDirs OPTIONAL)
+#
+include(GNUInstallDirs)
 
 #-----------------------------------------------------------------------
 # Define the known datasets as a list of tuples, tuple entries being
@@ -53,54 +65,47 @@ set(GEANT4_DATASETS
 # - Choose which libraries to install.
 # - If a requested library already exists, use that.
 #
-# Use ExternalProject to drive the download, so CMake 2.8 or higher only
-if(${CMAKE_VERSION} VERSION_GREATER 2.7)
-  option(GEANT4_INSTALL_DATA "Download and install Geant4 Data Libraries" OFF)
+option(GEANT4_INSTALL_DATA "Download and install Geant4 Data Libraries" OFF)
 
-  # The Physics Data Install Dir
-  # Try to follow as far as possible what's done in GNUInstallDirs
-  # *Should* default to CMAKE_INSTALL_DATAROOTDIR?
-  if(NOT GEANT4_INSTALL_DATADIR)
-    set(GEANT4_INSTALL_DATADIR "" CACHE PATH "read-only architecture independent Geant4 physics data (DATAROOTDIR/Geant4Data)")
-    set(GEANT4_INSTALL_DATADIR "${CMAKE_INSTALL_DATAROOTDIR}/Geant4Data")
-  endif()
+# The Physics Data Install Dir
+# Try to follow as far as possible what's done in GNUInstallDirs
+# *Should* default to CMAKE_INSTALL_DATAROOTDIR?
+if(NOT GEANT4_INSTALL_DATADIR)
+  set(GEANT4_INSTALL_DATADIR "" CACHE PATH "read-only architecture independent Geant4 physics data (DATAROOTDIR/Geant4Data)")
+  set(GEANT4_INSTALL_DATADIR "${CMAKE_INSTALL_DATAROOTDIR}/Geant4Data")
+endif()
 
-  mark_as_advanced(GEANT4_INSTALL_DATADIR)
+mark_as_advanced(GEANT4_INSTALL_DATADIR)
 
-  if(NOT IS_ABSOLUTE ${GEANT4_INSTALL_DATADIR})
-    set(GEANT4_INSTALL_FULL_DATADIR "${CMAKE_INSTALL_PREFIX}/${GEANT4_INSTALL_DATADIR}")
-  else()
-    set(GEANT4_INSTALL_FULL_DATADIR "${GEANT4_INSTALL_DATADIR}")
-  endif()
+if(NOT IS_ABSOLUTE ${GEANT4_INSTALL_DATADIR})
+  set(GEANT4_INSTALL_FULL_DATADIR "${CMAKE_INSTALL_PREFIX}/${GEANT4_INSTALL_DATADIR}")
+else()
+  set(GEANT4_INSTALL_FULL_DATADIR "${GEANT4_INSTALL_DATADIR}")
+endif()
 
-  # Provide an option for increasing the download timeout
-  # Helps with large datasets over slow connections.
-  # Only supported for CMake 2.8.1 and higher.
-  if(${CMAKE_VERSION} VERSION_GREATER 2.8.0)
-    set(GEANT4_INSTALL_DATA_TIMEOUT 1500 CACHE STRING "Time in seconds for Data Library download")
-    set(_geant4data_timeout_cmd TIMEOUT ${GEANT4_INSTALL_DATA_TIMEOUT})
-    mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
-  endif()
+# Provide an option for increasing the download timeout
+# Helps with large datasets over slow connections.
+set(GEANT4_INSTALL_DATA_TIMEOUT 1500 CACHE STRING "Time in seconds for Data Library download")
+set(_geant4data_timeout_cmd TIMEOUT ${GEANT4_INSTALL_DATA_TIMEOUT})
+mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
 
 
-  # Now we set up the install, if required
-  if(GEANT4_INSTALL_DATA)
-    # Drive download and unpacking via ExternalProject
-    include(ExternalProject)
-    
-    foreach(_dataset ${GEANT4_DATASETS})
-      # Listify entry and extract parameters
-      string(REPLACE "/" ";" _tuple ${_dataset})
-      list(GET _tuple 0 _dataset_name)
-      list(GET _tuple 1 _dataset_version)
-      list(GET _tuple 2 _dataset_filename)
-      list(GET _tuple 3 _dataset_extension)
-      list(GET _tuple 4 _dataset_envvar)
-      list(GET _tuple 5 _dataset_md5sum)
+#-----------------------------------------------------------------------
+# Set up check, download and install of needed data
+#
+if(GEANT4_INSTALL_DATA)
+  foreach(_dataset ${GEANT4_DATASETS})
+    # Listify entry and extract parameters
+    string(REPLACE "/" ";" _tuple ${_dataset})
+    list(GET _tuple 0 _dataset_name)
+    list(GET _tuple 1 _dataset_version)
+    list(GET _tuple 2 _dataset_filename)
+    list(GET _tuple 3 _dataset_extension)
+    list(GET _tuple 4 _dataset_envvar)
+    list(GET _tuple 5 _dataset_md5sum)
 
-      message(STATUS "Checking for prior install of ${_dataset_name}")
-    endforeach()
-  endif()
+    message(STATUS "Checking for prior install of ${_dataset_name}")
+  endforeach()
 endif()
 
 #-----------------------------------------------------------------------
