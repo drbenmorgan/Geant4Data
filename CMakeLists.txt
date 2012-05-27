@@ -15,12 +15,10 @@ project(Geant4Data)
 #
 message(STATUS "configuring with CMake ${CMAKE_VERSION}")
 
-
 #-----------------------------------------------------------------------
 # Project modules
 #
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
-
 
 #-----------------------------------------------------------------------
 # Setup installation directories
@@ -59,17 +57,18 @@ set(GEANT4_DATASETS
   )
 
 
+
 #-----------------------------------------------------------------------
-# CMake options for installing data
+# User options for installing data
+# - Choose whether to install data, which both files and environment
 # - Choose a directory under which to install the data.
-# - Choose which libraries to install.
-# - If a requested library already exists, use that.
+# - Change download timeout for problematic connections
 #
 option(GEANT4_INSTALL_DATA "Download and install Geant4 Data Libraries" OFF)
 
 # The Physics Data Install Dir
 # Try to follow as far as possible what's done in GNUInstallDirs
-# *Should* default to CMAKE_INSTALL_DATAROOTDIR?
+# TODO : select an appropriate default.
 if(NOT GEANT4_INSTALL_DATADIR)
   set(GEANT4_INSTALL_DATADIR "" CACHE PATH "read-only architecture independent Geant4 physics data (DATAROOTDIR/Geant4Data)")
   set(GEANT4_INSTALL_DATADIR "${CMAKE_INSTALL_DATAROOTDIR}/Geant4Data")
@@ -85,8 +84,7 @@ endif()
 
 # Provide an option for increasing the download timeout
 # Helps with large datasets over slow connections.
-set(GEANT4_INSTALL_DATA_TIMEOUT 1500 CACHE STRING "Time in seconds for Data Library download")
-set(_geant4data_timeout_cmd TIMEOUT ${GEANT4_INSTALL_DATA_TIMEOUT})
+set(GEANT4_INSTALL_DATA_TIMEOUT 1500 CACHE STRING "Timeout for Data Library download")
 mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
 
 
@@ -104,7 +102,13 @@ if(GEANT4_INSTALL_DATA)
     list(GET _tuple 4 _dataset_envvar)
     list(GET _tuple 5 _dataset_md5sum)
 
-    message(STATUS "Checking for prior install of ${_dataset_name}")
+    # Check for prior install
+    if(NOT IS_DIRECTORY ${GEANT4_INSTALL_FULL_DATADIR}/${_dataset_name}${_dataset_version})
+      message(STATUS "Installing ${_dataset_name}${_dataset_version}")
+      # DO INSTALL...
+    else()
+      message(STATUS "Found existing install of ${_dataset_name}${_dataset_version}")
+    endif()
   endforeach()
 endif()
 
