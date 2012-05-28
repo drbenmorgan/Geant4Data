@@ -27,6 +27,13 @@ include(GNUInstallDirs)
 include(CMakeMacroParseArguments)
 
 #-----------------------------------------------------------------------
+# Define global data for Geant4 data
+# We may want these as properties so we can have a small API for
+# retrieving them globally
+set(GEANT4_DATASETS_URL "file://$ENV{HOME}/Downloads")
+set(GEANT4_BUILD_FULL_DATADIR ${PROJECT_BINARY_DIR}/data)
+message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
+
 # Define the known datasets as a list of tuples, tuple entries being
 # colon separated
 # Tuple entries:
@@ -41,11 +48,7 @@ include(CMakeMacroParseArguments)
 # This is a mess (make note on rationalizing filename and
 # Environment variable, e.g.
 # name-version.tar.bz2 => env(G4_NAME_DATADIR)
-#
-# Use a local URL for development
-set(GEANT4_DATASETS_URL "file://$ENV{HOME}/Downloads")
-message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
-
+# Again, may want to add these through an API...
 set(GEANT4_DATASETS
   G4NDL/4.0/G4NDL/tar.gz/G4NEUTRONHPDATA/6d23aff98e5706af1dd7fff397969f37
   G4EMLOW/6.23/G4EMLOW/tar.gz/G4LEDATA/98cdca1024bf168c8f8ca1deb40f43b9
@@ -174,7 +177,7 @@ function(geant4_do_install_data _url _dataset _prefix _timeout)
     include(ExternalProject)
     ExternalProject_Add(${_name}
       PREFIX Externals/${_filename}-${_version}
-      SOURCE_DIR data/${_name}${_version}
+      SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}/${_name}${_version}
       URL ${_url}/${_filename}.${_version}.${_extension}
       URL_MD5 ${_md5sum}
       TIMEOUT 1500
@@ -185,7 +188,7 @@ function(geant4_do_install_data _url _dataset _prefix _timeout)
   else()
     _geant4_dataproject(${_name}
       PREFIX Externals/${_filename}-${_version}
-      SOURCE_DIR data
+      SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}
       URL ${_url}/${_filename}.${_version}.${_extension}
       URL_MD5 ${_md5sum}
       TIMEOUT 1500
@@ -239,12 +242,6 @@ mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
 #
 if(GEANT4_INSTALL_DATA)
   foreach(_dataset ${GEANT4_DATASETS})
-    # - DO INSTALL
-    # Input is url, filename, wheretodownload, where to unpack
-    # Output is path to unpack location
-    # Final install locations will always be under GEANT4_INSTALL_DATADIR
-    # Build locations may be a mix of in build and prior installs...
-    # For now, just assume we download and install everything
     geant4_do_install_data(${GEANT4_DATASETS_URL} ${_dataset} ${GEANT4_INSTALL_FULL_DATADIR} ${GEANT4_INSTALL_DATA_TIMEOUT})
   endforeach()
 endif()
@@ -257,6 +254,31 @@ add_subdirectory(Source)
 #-----------------------------------------------------------------------
 # Final messaging of results (because we don't generate scripts for now)
 #
-message(STATUS "GEANT4_INSTALL_DATADIR : ${GEANT4_INSTALL_DATADIR}")
+message(STATUS "GEANT4_BUILD_FULL_DATADIR   : ${GEANT4_BUILD_FULL_DATADIR}")
+message(STATUS "GEANT4_INSTALL_DATADIR      : ${GEANT4_INSTALL_DATADIR}")
 message(STATUS "GEANT4_INSTALL_FULL_DATADIR : ${GEANT4_INSTALL_FULL_DATADIR}")
+
+#-----------------------------------------------------------------------
+# For scripts, we have two places where the build and install paths
+# need to be added:
+# 
+# 1) geant4.(c)sh
+# 2) geant4make.(c)sh
+#
+# and these have to be configured for both the build and install trees.
+# As the scripts derive paths from their own location, we need to
+# output absolute paths so relative paths can be calculated later.
+# They are also needed for testing - this assumes, like the above, that
+# all datasets will be installed if we choose to install data at all.
+# This means that we can set a variable, say GEANT4_BUILD_FULL_DATADIR, 
+# that will point to the build tree directory containing the data files
+# In the above it's ${PROJECT_BINARY_DIR}/data
+#
+# This isn't future proof against the case of a mix of new and preexisting
+# installs, but gives consistent behaviour in the short term.
+# In the future, we will need a pair of variables for each dataset, e.g.
+#
+#  GEANT4_INSTALL_FULL_DATADIR_${DATASET_NAME}
+#  GEANT4_BUILD_FULL_DATADIR_${DATASET_NAME}
+#
 
