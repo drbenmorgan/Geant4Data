@@ -9,6 +9,7 @@
 #-----------------------------------------------------------------------
 cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(Geant4Data)
+set(${PROJECT_NAME}_VERSION "1.0.0")
 
 #-----------------------------------------------------------------------
 # Check report of CMake version
@@ -27,15 +28,26 @@ include(GNUInstallDirs)
 include(CMakeMacroParseArguments)
 
 #-----------------------------------------------------------------------
-# Define global data for Geant4 data
+# GEANT4 PHYSICS DATA - API AND GLOBAL CMAKE VARIABLES
+#
+#-----------------------------------------------------------------------
+# URLs, directories and dataset entries
 # We may want these as properties so we can have a small API for
 # retrieving them globally
-set(GEANT4_DATASETS_URL "file://$ENV{HOME}/Downloads")
+#-----------------------------------------------------------------------
+# Geant4 Data Repository
+set(GEANT4_DATASETS_URL "http://geant4.cern.ch/support/source")
+
+# Where to install data in the build tree
 set(GEANT4_BUILD_FULL_DATADIR ${PROJECT_BINARY_DIR}/data)
+
+# Where to install data in the install tree (a Default)
+set(GEANT4_INSTALL_DATADIR_DEFAULT "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}-${${PROJECT_NAME}_VERSION}/data")
+
 message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
 
 # Define the known datasets as a list of tuples, tuple entries being
-# colon separated
+# forward slash separated. Messy.
 # Tuple entries:
 # 0 : Directory Name
 # 1 : Version
@@ -43,15 +55,11 @@ message(STATUS "GEANT4_DATASETS_URL : ${GEANT4_DATASETS_URL}")
 # 3 : Filename Extension
 # 4 : Environment Variable
 # 5 : Expected MD5 sum File
-# 6 : (NOTIMPLEMENTEDYET) Marker for detecting existing install (expected file)
+# 6 : (NOTIMPLEMENTEDYET) Marker for detecting existing install
 #
-# This is a mess (make note on rationalizing filename and
-# Environment variable, e.g.
-# name-version.tar.bz2 => env(G4_NAME_DATADIR)
-# Again, may want to add these through an API...
 set(GEANT4_DATASETS
   G4NDL/4.0/G4NDL/tar.gz/G4NEUTRONHPDATA/6d23aff98e5706af1dd7fff397969f37
-  G4EMLOW/6.23/G4EMLOW/tar.gz/G4LEDATA/98cdca1024bf168c8f8ca1deb40f43b9
+  G4EMLOW/6.26/G4EMLOW/tar.gz/G4LEDATA/637f440a38b136f2e4df51f1cf0a02f9
   PhotonEvaporation/2.2/G4PhotonEvaporation/tar.gz/G4LEVELGAMMADATA/8010e7ce8a92564e38dd3418e6040563
   RadioactiveDecay/3.4/G4RadioactiveDecay/tar.gz/G4RADIOACTIVEDATA/a5b681048584631608ab0965b33c7959
   G4ABLA/3.0/G4ABLA/tar.gz/G4ABLADATA/d7049166ef74a592cb97df0ed4b757bd
@@ -60,9 +68,15 @@ set(GEANT4_DATASETS
   RealSurface/1.0/RealSurface/tar.gz/G4REALSURFACEDATA/0dde95e00fcd3bcd745804f870bb6884
   )
 
-# - API for downloading and installing data
-# - Download, verify and unpack data on CMake versions with unsupported
-# ExternalProject
+#-----------------------------------------------------------------------
+# API for downloading and installing data
+#-----------------------------------------------------------------------
+# function _geant4_data_project(<name>
+#                               PREFIX installdir
+#                               SOURCE_DIR wheretounpack
+#                               URL whattodownload
+#                               URL_MD5 expectedMD5ofdownload
+#                               TIMEOUT timeoutafter(seconds)
 function(_geant4_dataproject _name)
   # - Parse arguments and create any extra needed variables
   set(oneValueArgs PREFIX SOURCE_DIR URL URL_MD5 TIMEOUT)
@@ -76,15 +90,15 @@ function(_geant4_dataproject _name)
     ${_G4DATA_URL}
     \"${_G4DATA_PREFIX}/${_G4DATA_FILE}\"
     TIMEOUT ${_G4DATA_TIMEOUT}
-    STATUS _status
-    LOG _log)
+    STATUS _status)
+    # LOG _log) - LOG with TIMEOUT fails due to curl issue, prefer TIMEOUT
   list(GET _status 0 _status_code)
   list(GET _status 1 _status_msg)
   if(NOT _status_code EQUAL 0)
     message(FATAL_ERROR \"error: downloading ${_G4DATA_URL} failed
       status_code : \${_status_code}
       status_msg  : \${_status_msg}
-      log : ${_log}\"
+      #log : \${_log}\"
       )
   endif()
   ")
@@ -160,9 +174,14 @@ function(_geant4_dataproject _name)
 endfunction()
 
 
-# - Front end for all datasets
+#-----------------------------------------------------------------------
+# - Dispatch download task according to CMake version, and install data
+# function geant4_do_install_data(<repourl>,
+#                                 <dataset_tuple>,
+#                                 <prefix>,
+#                                 <download_timeout>
 function(geant4_do_install_data _url _dataset _prefix _timeout)
-  # Listify entry and extract parameters
+  # Listify tuple and extract parameters
   string(REPLACE "/" ";" _tuple ${_dataset})
   list(GET _tuple 0 _name)
   list(GET _tuple 1 _version)
@@ -171,8 +190,8 @@ function(geant4_do_install_data _url _dataset _prefix _timeout)
   list(GET _tuple 4 _envvar)
   list(GET _tuple 5 _md5sum)
 
-  # - Dispatch to ExternalProject or our own implementation depending
-  # on CMake version.
+  # - Dispatch to ExternalProject or our own implementation.
+  # Use of URL_MD5 *and* TIMEOUT require CMake 2.8.2 or higher.
   if(${CMAKE_VERSION} VERSION_GREATER "2.8.1")
     include(ExternalProject)
     ExternalProject_Add(${_name}
@@ -180,7 +199,7 @@ function(geant4_do_install_data _url _dataset _prefix _timeout)
       SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}/${_name}${_version}
       URL ${_url}/${_filename}.${_version}.${_extension}
       URL_MD5 ${_md5sum}
-      TIMEOUT 1500
+      TIMEOUT ${_timeout}
       CONFIGURE_COMMAND ""
       BUILD_COMMAND ""
       INSTALL_COMMAND ""
@@ -191,7 +210,7 @@ function(geant4_do_install_data _url _dataset _prefix _timeout)
       SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}
       URL ${_url}/${_filename}.${_version}.${_extension}
       URL_MD5 ${_md5sum}
-      TIMEOUT 1500
+      TIMEOUT ${_timeout}
       )
   endif()
 
@@ -204,7 +223,7 @@ endfunction()
 
 
 #-----------------------------------------------------------------------
-# USER INTERFACE AND PROCESSING
+# GEANT4 PHYSICS DATA - USER INTERFACE AND PROCESSING
 #
 #-----------------------------------------------------------------------
 # User options for installing data
@@ -215,12 +234,11 @@ endfunction()
 option(GEANT4_INSTALL_DATA "Download and install Geant4 Data Libraries" OFF)
 
 #-----------------------------------------------------------------------
-# The Physics Data Install Dir
-# Try to follow as far as possible what's done in GNUInstallDirs
-# TODO : select an appropriate default.
+# Choose Physics Data Install Dir
+# This follows the pattern for interface and setting as in GNUInstallDirs
 if(NOT GEANT4_INSTALL_DATADIR)
-  set(GEANT4_INSTALL_DATADIR "" CACHE PATH "read-only architecture independent Geant4 physics data (DATAROOTDIR/Geant4Data)")
-  set(GEANT4_INSTALL_DATADIR "${CMAKE_INSTALL_DATAROOTDIR}/Geant4Data")
+  set(GEANT4_INSTALL_DATADIR "" CACHE PATH "read-only architecture independent Geant4 physics data (DATAROOTDIR/${GEANT4_INSTALL_DATADIR_DEFAULT}")
+  set(GEANT4_INSTALL_DATADIR "${GEANT4_INSTALL_DATADIR_DEFAULT}")
 endif()
 
 if(NOT IS_ABSOLUTE ${GEANT4_INSTALL_DATADIR})
