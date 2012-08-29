@@ -71,6 +71,32 @@ set(GEANT4_DATASETS
 #-----------------------------------------------------------------------
 # API for downloading and installing data
 #-----------------------------------------------------------------------
+# Properties?
+define_property(GLOBAL PROPERTY "GEANT4_DATASETS"
+  BRIEF_DOCS "List of all defined Geant4 dataset names"
+  FULL_DOCS
+  "Each element of the list gives the name defined for the dataset"
+  "This name can be used in other Geant4 Data API functions to"
+  "extract other properties of the dataset"
+  )
+
+#-----------------------------------------------------------------------
+# function geant4_add_dataset(NAME id
+#                             VERSION ver
+#                             FILENAME file
+#                             EXTENSION ext
+#                             ENVVAR varname
+#                             MD5SUM md5)
+function(geant4_add_dataset)
+  # - Parse arguments and create variables
+  set(oneValueArgs NAME VERSION FILENAME EXTENSION ENVVAR MD5SUM)
+  cmake_parse_arguments(_G4ADDDATA "" "${oneValueArgs}" "" ${ARGN})
+
+  set(_fullfilename "${_G4ADDDATA_FILENAME}.${_G4ADDDATA_VERSION}.${_G4ADDDATA_EXTENSION}")
+  set(_basedirectory "${_G4ADDDATA_NAME}${_G4ADDDATA_VERSION}")  
+endfunction()
+
+#-----------------------------------------------------------------------
 # function _geant4_data_project(<name>
 #                               PREFIX installdir
 #                               SOURCE_DIR wheretounpack

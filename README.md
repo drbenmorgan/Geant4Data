@@ -27,3 +27,26 @@ This small (unofficial!) project studies resolutions to these issues,
 at both the CMake and C++ levels. 
 
 
+Re-using Existing Data Installs
+-------------------------------
+The current technique for pointing to data libraries assumes either a
+full download of everything or no data at all. We only have a single
+switch for data installs (all libraries or none) for simplicity. 
+To attempt re-use of existing installs of data, we can look for libraries
+in the directory pointed to by the `GEANT4_INSTALL_FULL_DATADIR` variable,
+but this may only contain some of the required libraries (we always
+download/install all libraries for clarity/simplicity).
+In this case, we need to download some libraries into the build tree,
+as is done already, and point to any preexisting ones in the install tree.
+
+This distinction is needed because we allow the build tree to be fully
+functional (that is, you can build applications against it). In the
+current system, this potential difference in data library paths cannot
+be handled. To rectify this, we allow for a mixture of data paths
+for the build tree and have two variables for each library: one which
+points to its location for use by the build tree, the other to its
+location for use by the install tree.
+
+To implement this, and to help handling of datasets, we implement a small
+API to declare datasets and extract information on them.
+ 
