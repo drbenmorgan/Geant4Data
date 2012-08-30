@@ -303,26 +303,50 @@ message(STATUS "GEANT4_INSTALL_DATADIR      : ${GEANT4_INSTALL_DATADIR}")
 message(STATUS "GEANT4_INSTALL_FULL_DATADIR : ${GEANT4_INSTALL_FULL_DATADIR}")
 
 #-----------------------------------------------------------------------
-# For scripts, we have two places where the build and install paths
+# For scripts, we have up to 5 places where the build and install paths
 # need to be added:
 # 
 # 1) geant4.(c)sh
 # 2) geant4make.(c)sh
+# 3) geant4make.gmk
+# 4) geant4-config
+# 5) Geant4Config.cmake
 #
-# and these have to be configured for both the build and install trees.
-# As the scripts derive paths from their own location, we need to
-# output absolute paths so relative paths can be calculated later.
-# They are also needed for testing - this assumes, like the above, that
-# all datasets will be installed if we choose to install data at all.
-# This means that we can set a variable, say GEANT4_BUILD_FULL_DATADIR, 
-# that will point to the build tree directory containing the data files
-# In the above it's ${PROJECT_BINARY_DIR}/data
-#
-# This isn't future proof against the case of a mix of new and preexisting
-# installs, but gives consistent behaviour in the short term.
-# In the future, we will need a pair of variables for each dataset, e.g.
-#
-#  GEANT4_INSTALL_FULL_DATADIR_${DATASET_NAME}
-#  GEANT4_BUILD_FULL_DATADIR_${DATASET_NAME}
-#
+#-----------------------------------------------------------------------
+# macro geant4_data_exports()
+#       Very simple macro to create the set of variables to be exported
+#       to the scripts via @VAR@ expansion.
+#       TODO : option to select between build and install tree variables?
+macro(geant4_data_create_exports)
+  set(_g4dev_data_dir "${GEANT4_BUILD_FULL_DATADIR}")
+  foreach(_dataset ${GEANT4_DATASETS})
+    string(REPLACE "/" ";" _tuple ${_dataset})
+    list(GET _tuple 0 _name)
+    list(GET _tuple 1 _version)
+    list(GET _tuple 4 _envvar)
+    set(${_envvar}_DIR "${_g4dev_data_dir}/${_name}${_version}")
+  endforeach()
+endmacro()
+
+if(GEANT4_INSTALL_DATA)
+  # - Build tree only fo now...
+  geant4_data_create_exports()
+
+  configure_file(cmake/geant4data.sh.in 
+    ${PROJECT_BINARY_DIR}/geant4data.sh 
+    @ONLY
+    )
+
+  configure_file(cmake/geant4data.csh.in 
+    ${PROJECT_BINARY_DIR}/geant4data.csh 
+    @ONLY
+    )
+
+  configure_file(cmake/geant4data.gmk.in
+    ${PROJECT_BINARY_DIR}/geant4data.gmk
+    @ONLY
+    )
+endif()
+
+# - And we should be done...
 
