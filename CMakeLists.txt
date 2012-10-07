@@ -283,7 +283,38 @@ mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
 
 #-----------------------------------------------------------------------
 # Set up check, download and install of needed data
-#
+# - New style, based on re-using existing datasets, if they exist
+foreach(_dataset ${GEANT4_DATASETS})
+  # Listify tuple and extract parameters
+  string(REPLACE "/" ";" _tuple ${_dataset})
+  list(GET _tuple 0 _name)
+  list(GET _tuple 1 _version)
+  list(GET _tuple 2 _filename)
+  list(GET _tuple 3 _extension)
+  list(GET _tuple 4 _envvar)
+  list(GET _tuple 5 _md5sum)
+
+  # - Does directory already exist?
+  set(_expected_path ${GEANT4_INSTALL_FULL_DATADIR}/${_name}${_version})
+  if(NOT IS_DIRECTORY ${_expected_path})
+    if(GEANT4_INSTALL_DATA)
+      message(STATUS "Installing missing dataset ${_name}")
+      # - So here's where we set up a download+install job
+    else()
+      message(WARNING "Could not find dataset ${_name} (${_version})")
+      # - Warn that dataset must be downloaded, though _expected_path
+      # will be used for configuration. May want to give single
+      # warning at end of processing for clarity.
+    endif()
+  else()
+    message(STATUS "Found dataset ${_name} (${_version})")
+    # - Simple reuse case...
+  endif()
+endforeach()
+#newstyleend
+
+
+# - Old style...
 if(GEANT4_INSTALL_DATA)
   foreach(_dataset ${GEANT4_DATASETS})
     geant4_do_install_data(${GEANT4_DATASETS_URL} ${_dataset} ${GEANT4_INSTALL_FULL_DATADIR} ${GEANT4_INSTALL_DATA_TIMEOUT})
