@@ -29,7 +29,6 @@ include(CMakeMacroParseArguments)
 
 #-----------------------------------------------------------------------
 # GEANT4 PHYSICS DATA - API AND GLOBAL CMAKE VARIABLES
-#
 #-----------------------------------------------------------------------
 # URLs, directories and dataset entries
 # We may want these as properties so we can have a small API for
@@ -68,10 +67,11 @@ set(GEANT4_DATASETS
   RealSurface/1.0/RealSurface/tar.gz/G4REALSURFACEDATA/0dde95e00fcd3bcd745804f870bb6884
   )
 
+
 #-----------------------------------------------------------------------
 # API for downloading and installing data
 #-----------------------------------------------------------------------
-# Properties?
+# Properties? Shouldn't clash with the tuplized variable...
 define_property(GLOBAL PROPERTY "GEANT4_DATASETS"
   BRIEF_DOCS "List of all defined Geant4 dataset names"
   FULL_DOCS
@@ -79,6 +79,38 @@ define_property(GLOBAL PROPERTY "GEANT4_DATASETS"
    This name can be used in other Geant4 Data API functions to
    extract other properties of the dataset"
   )
+
+#-----------------------------------------------------------------------
+# function geant4_get_datasetnames(<output variable>)
+#          Set output variable to the list of dataset names
+#
+function(geant4_get_datasetnames _output)
+  get_property(_tmp GLOBAL PROPERTY GEANT4_DATASETS)
+  set(${_output} ${_tmp} PARENT_SCOPE)
+endfunction()
+
+#-----------------------------------------------------------------------
+# function geant4_tupleize_datasets(<output variable>)
+#          Set output variable to list of old-style dataset tuples.
+#          A tuple has the format:
+#            NAME/VERSION/FILENAME/EXTENSION/ENVVAR/MD5SUM
+#
+function(geant4_tupleize_datasets _output)
+  geant4_get_datasetnames(_names)
+  set(_tmplist)
+
+  foreach(_ds ${_names})
+    set(_tuple ${_ds})
+    foreach(_p VERSION FILENAME EXTENSION ENVVAR MD5SUM)
+      get_property(_tmpprop GLOBAL PROPERTY ${_ds}_${_p})
+      list(APPEND _tuple ${_tmpprop})
+    endforeach()
+    string(REPLACE ";" "/" _tuple "${_tuple}")
+    list(APPEND _tmplist "${_tuple}")
+  endforeach()
+  
+  set(${_output} ${_tmplist} PARENT_SCOPE)
+endfunction()
 
 #-----------------------------------------------------------------------
 # function geant4_add_dataset(NAME id
@@ -92,10 +124,176 @@ function(geant4_add_dataset)
   set(oneValueArgs NAME VERSION FILENAME EXTENSION ENVVAR MD5SUM)
   cmake_parse_arguments(_G4ADDDATA "" "${oneValueArgs}" "" ${ARGN})
 
-  set(_fullfilename "${_G4ADDDATA_FILENAME}.${_G4ADDDATA_VERSION}.${_G4ADDDATA_EXTENSION}")
-  set(_basedirectory "${_G4ADDDATA_NAME}${_G4ADDDATA_VERSION}")  
+  # - Fail if already defined
+  geant4_has_dataset(${_G4ADDDATA_NAME} _dsexists)
+  if(_dsexists)
+    message(FATAL_ERROR "Dataset ${_G4ADDDATA_NAME} is already defined")
+  endif()
+
+  # - Set properties as global props <NAME>_<PROP>
+  # simple ones...
+  foreach(_prop VERSION FILENAME EXTENSION ENVVAR MD5SUM)
+    set_property(GLOBAL PROPERTY ${_G4ADDDATA_NAME}_${_prop} ${_G4ADDDATA_${_prop}})
+  endforeach()
+
+  # derived ones...
+  set_property(GLOBAL PROPERTY ${_G4ADDDATA_NAME}_FILE 
+    "${_G4ADDDATA_FILENAME}.${_G4ADDDATA_VERSION}.${_G4ADDDATA_EXTENSION}")
+  set_property(GLOBAL PROPERTY ${_G4ADDDATA_NAME}_DIRECTORY 
+    "${_G4ADDDATA_NAME}${_G4ADDDATA_VERSION}")
+
+  # - add it to the list of defined datasets
+  set_property(GLOBAL APPEND PROPERTY GEANT4_DATASETS ${_G4ADDDATA_NAME})
 endfunction()
 
+#-----------------------------------------------------------------------
+# function geant4_has_dataset(<name> <output variable>)
+#          Set output variable to TRUE if the named dataset is listed
+#          in the list of declared datasets
+#
+function(geant4_has_dataset _name _output)
+  get_property(_dslist GLOBAL PROPERTY GEANT4_DATASETS)
+  list(FIND _dslist ${_name} _index)
+  if(_index GREATER -1)
+    set(${_output} TRUE PARENT_SCOPE)
+  else()
+    set(${_output} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
+#-----------------------------------------------------------------------
+# function geant4_dataset_property(<name> <property> <output variable>)
+#          Set output variable to value of dataset "name"'s property.
+#          If property does not exist, then value will be blank.
+#
+function(geant4_dataset_property _name _prop _output)
+  geant4_has_dataset(${_name} _dsexists)
+  if(NOT _dsexists)
+    message(FATAL_ERROR "non-existent dataset ${_name}")
+  endif()
+
+  get_property(_tmp GLOBAL PROPERTY ${_name}_${_prop})
+  set(${_output} ${_tmp} PARENT_SCOPE)
+endfunction()
+
+#-----------------------------------------------------------------------
+# function geant4_configure_datasets(DESTINATION <dir>
+#                                    DOWNLOAD    <installmissing>
+#                                    TIMEOUT     <seconds>
+#                                    )
+#          Perform the actual heavy lifting to configure each declared
+#          dataset for reuse or download as needed.
+#
+function(geant4_configure_datasets)
+  # - Parse arguments and create variables
+  set(oneValueArgs DESTINATION DOWNLOAD TIMEOUT)
+  cmake_parse_arguments(_G4CFGDSS "" "${oneValueArgs}" "" ${ARGN})
+
+  geant4_get_datasetnames(_knownds)
+
+  foreach(_ds ${_knownds})
+    geant4_dataset_property(${_ds} DIRECTORY _dsdir)
+    geant4_dataset_property(${_ds} VERSION _dsver)
+
+    # - Does directory already exist?
+    set(_expected_path ${GEANT4_INSTALL_FULL_DATADIR}/${_dsdir})
+    if(NOT IS_DIRECTORY ${_expected_path})
+      if(_G4CFGDSS_DOWNLOAD)
+        message(STATUS "Configuring download of missing dataset ${_ds} (${_dsver})")
+        # - So here's where we set up a download+install job
+      else()
+        message(STATUS "Could not find dataset ${_ds} (${_dsver})")
+        # - Warn that dataset must be downloaded, though _expected_path
+        # will be used for configuration. May want to give single
+        # warning at end of processing for clarity.
+        # NB!!!! WARNING does NOT exist on cmake 2.6.4 so we use STATUS.
+      endif()
+    else()
+      message(STATUS "Found dataset ${_ds} (${_dsver})")
+      # - Simple reuse case...
+    endif()
+  endforeach()
+endfunction()
+
+
+#-----------------------------------------------------------------------
+# TESTING SETUP FOR NEWSTYLE CONFIGURATION
+#-----------------------------------------------------------------------
+# - Define datasets
+geant4_add_dataset(
+  NAME      G4NDL 
+  VERSION   4.0 
+  FILENAME  G4NDL 
+  EXTENSION tar.gz
+  ENVVAR    G4NEUTRONHPDATA
+  MD5SUM    6d23aff98e5706af1dd7fff397969f37
+  )
+
+geant4_add_dataset(
+  NAME      G4EMLOW
+  VERSION   6.26 
+  FILENAME  G4EMLOW 
+  EXTENSION tar.gz
+  ENVVAR    G4LEDATA
+  MD5SUM    637f440a38b136f2e4df51f1cf0a02f9
+  )
+
+geant4_add_dataset(
+  NAME      PhotonEvaporation
+  VERSION   2.2
+  FILENAME  G4PhotonEvaporation
+  EXTENSION tar.gz
+  ENVVAR    G4LEVELGAMMADATA
+  MD5SUM    8010e7ce8a92564e38dd3418e6040563
+  )
+
+geant4_add_dataset(
+  NAME      RadioactiveDecay
+  VERSION   3.4
+  FILENAME  G4RadioactiveDecay
+  EXTENSION tar.gz
+  ENVVAR    G4RADIOACTIVEDATA
+  MD5SUM    a5b681048584631608ab0965b33c7959
+  )
+
+geant4_add_dataset(
+  NAME      G4ABLA
+  VERSION   3.0
+  FILENAME  G4ABLA
+  EXTENSION tar.gz
+  ENVVAR    G4ABLADATA
+  MD5SUM    d7049166ef74a592cb97df0ed4b757bd
+  )
+
+geant4_add_dataset(
+  NAME      G4NEUTRONXS
+  VERSION   1.1
+  FILENAME  G4NEUTRONXS
+  EXTENSION tar.gz
+  ENVVAR    G4NEUTRONXSDATA
+  MD5SUM    61ef3a05b56525db04e11820e3f603f1
+  )
+
+geant4_add_dataset(
+  NAME      G4PII
+  VERSION   1.3
+  FILENAME  G4PII
+  EXTENSION tar.gz
+  ENVVAR    G4PIIDATA
+  MD5SUM    05f2471dbcdf1a2b17cbff84e8e83b37
+  )
+
+geant4_add_dataset(
+  NAME      RealSurface
+  VERSION   1.0
+  FILENAME  RealSurface
+  EXTENSION tar.gz
+  ENVVAR    G4REALSURFACEDATA
+  MD5SUM    0dde95e00fcd3bcd745804f870bb6884
+  )
+
+#-----------------------------------------------------------------------
+# OLD STYLE FUNCTIONS - SOME MAY BE REUSED
 #-----------------------------------------------------------------------
 # function _geant4_data_project(<name>
 #                               PREFIX installdir
@@ -250,7 +448,6 @@ endfunction()
 
 #-----------------------------------------------------------------------
 # GEANT4 PHYSICS DATA - USER INTERFACE AND PROCESSING
-#
 #-----------------------------------------------------------------------
 # User options for installing data
 # - Choose a directory under which to install the data.
@@ -283,36 +480,11 @@ mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
 #-----------------------------------------------------------------------
 # Set up check, download and install of needed data
 # - New style, based on re-using existing datasets, if they exist
-foreach(_dataset ${GEANT4_DATASETS})
-  # Listify tuple and extract parameters
-  string(REPLACE "/" ";" _tuple ${_dataset})
-  list(GET _tuple 0 _name)
-  list(GET _tuple 1 _version)
-  list(GET _tuple 2 _filename)
-  list(GET _tuple 3 _extension)
-  list(GET _tuple 4 _envvar)
-  list(GET _tuple 5 _md5sum)
-
-  # - Does directory already exist?
-  set(_expected_path ${GEANT4_INSTALL_FULL_DATADIR}/${_name}${_version})
-  if(NOT IS_DIRECTORY ${_expected_path})
-    if(GEANT4_INSTALL_DATA)
-      message(STATUS "Configuring download of missing dataset ${_name} (${_version})")
-      # - So here's where we set up a download+install job
-    else()
-      message(STATUS "Could not find dataset ${_name} (${_version})")
-      # - Warn that dataset must be downloaded, though _expected_path
-      # will be used for configuration. May want to give single
-      # warning at end of processing for clarity.
-      # NB!!!! WARNING does NOT exist on cmake 2.6.4 so we use STATUS.
-    endif()
-  else()
-    message(STATUS "Found dataset ${_name} (${_version})")
-    # - Simple reuse case...
-  endif()
-endforeach()
-#newstyleend
-
+geant4_configure_datasets(
+  DESTINATION ${GEANT4_INSTALL_FULL_DATADIR}
+  DOWNLOAD    ${GEANT4_INSTALL_DATA}
+  TIMEOUT     ${GEANT4_INSTALL_DATA_TIMEOUT}
+  )
 
 # - Old style...
 if(GEANT4_INSTALL_DATA)
@@ -322,8 +494,10 @@ if(GEANT4_INSTALL_DATA)
 endif()
 
 #-----------------------------------------------------------------------
+# C++ DATA API
+#-----------------------------------------------------------------------
 # Build the C++ data location/access API library and test programs
-#
+# TODO!
 add_subdirectory(Source)
 
 #-----------------------------------------------------------------------
@@ -333,6 +507,8 @@ message(STATUS "GEANT4_BUILD_FULL_DATADIR   : ${GEANT4_BUILD_FULL_DATADIR}")
 message(STATUS "GEANT4_INSTALL_DATADIR      : ${GEANT4_INSTALL_DATADIR}")
 message(STATUS "GEANT4_INSTALL_FULL_DATADIR : ${GEANT4_INSTALL_FULL_DATADIR}")
 
+#-----------------------------------------------------------------------
+# CONFIGURE SHELL/MAKE/CMAKE SCRIPTS
 #-----------------------------------------------------------------------
 # For scripts, we have up to 5 places where the build and install paths
 # need to be added:
