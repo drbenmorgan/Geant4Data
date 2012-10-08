@@ -253,12 +253,9 @@ endfunction()
 #
 #-----------------------------------------------------------------------
 # User options for installing data
-# - Choose whether to install data, which both files and environment
 # - Choose a directory under which to install the data.
+# - Choose whether to download and install missing datasets.
 # - Change download timeout for problematic connections
-#
-option(GEANT4_INSTALL_DATA "Download and install Geant4 Data Libraries" OFF)
-
 #-----------------------------------------------------------------------
 # Choose Physics Data Install Dir
 # This follows the pattern for interface and setting as in GNUInstallDirs
@@ -273,7 +270,9 @@ else()
   set(GEANT4_INSTALL_FULL_DATADIR "${GEANT4_INSTALL_DATADIR}")
 endif()
 
-mark_as_advanced(GEANT4_INSTALL_DATADIR)
+#-----------------------------------------------------------------------
+# Select whether to download and install missing datasets
+option(GEANT4_INSTALL_DATA "Download/Install datasets missing from GEANT4_INSTALL_DATADIR" OFF)
 
 #-----------------------------------------------------------------------
 # Provide an option for increasing the download timeout
@@ -305,7 +304,7 @@ foreach(_dataset ${GEANT4_DATASETS})
       # - Warn that dataset must be downloaded, though _expected_path
       # will be used for configuration. May want to give single
       # warning at end of processing for clarity.
-      # NB!!!! WARNING does NOT exist on cmake 2.6.4!!
+      # NB!!!! WARNING does NOT exist on cmake 2.6.4 so we use STATUS.
     endif()
   else()
     message(STATUS "Found dataset ${_name} (${_version})")
