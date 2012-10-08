@@ -75,9 +75,9 @@ set(GEANT4_DATASETS
 define_property(GLOBAL PROPERTY "GEANT4_DATASETS"
   BRIEF_DOCS "List of all defined Geant4 dataset names"
   FULL_DOCS
-  "Each element of the list gives the name defined for the dataset"
-  "This name can be used in other Geant4 Data API functions to"
-  "extract other properties of the dataset"
+  "Each element of the list gives the name defined for the dataset.
+   This name can be used in other Geant4 Data API functions to
+   extract other properties of the dataset"
   )
 
 #-----------------------------------------------------------------------
@@ -298,13 +298,14 @@ foreach(_dataset ${GEANT4_DATASETS})
   set(_expected_path ${GEANT4_INSTALL_FULL_DATADIR}/${_name}${_version})
   if(NOT IS_DIRECTORY ${_expected_path})
     if(GEANT4_INSTALL_DATA)
-      message(STATUS "Installing missing dataset ${_name}")
+      message(STATUS "Configuring download of missing dataset ${_name} (${_version})")
       # - So here's where we set up a download+install job
     else()
-      message(WARNING "Could not find dataset ${_name} (${_version})")
+      message(STATUS "Could not find dataset ${_name} (${_version})")
       # - Warn that dataset must be downloaded, though _expected_path
       # will be used for configuration. May want to give single
       # warning at end of processing for clarity.
+      # NB!!!! WARNING does NOT exist on cmake 2.6.4!!
     endif()
   else()
     message(STATUS "Found dataset ${_name} (${_version})")
