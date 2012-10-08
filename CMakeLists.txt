@@ -131,16 +131,25 @@ function(geant4_add_dataset)
   endif()
 
   # - Set properties as global props <NAME>_<PROP>
-  # simple ones...
+  # Simple properties...
   foreach(_prop VERSION FILENAME EXTENSION ENVVAR MD5SUM)
     set_property(GLOBAL PROPERTY ${_G4ADDDATA_NAME}_${_prop} ${_G4ADDDATA_${_prop}})
   endforeach()
 
-  # derived ones...
+  # Derived properties...
+  # FILE : the full filename of the packed dataset
   set_property(GLOBAL PROPERTY ${_G4ADDDATA_NAME}_FILE 
-    "${_G4ADDDATA_FILENAME}.${_G4ADDDATA_VERSION}.${_G4ADDDATA_EXTENSION}")
+    "${_G4ADDDATA_FILENAME}.${_G4ADDDATA_VERSION}.${_G4ADDDATA_EXTENSION}"
+    )
+  # DIRECTORY : the name of the directory that results from unpacking
+  #             the packed dataset file.
   set_property(GLOBAL PROPERTY ${_G4ADDDATA_NAME}_DIRECTORY 
-    "${_G4ADDDATA_NAME}${_G4ADDDATA_VERSION}")
+    "${_G4ADDDATA_NAME}${_G4ADDDATA_VERSION}"
+    )
+  # URL : remote and full URL to the packed dataset file
+  set_property(GLOBAL PROPERTY ${_G4ADDDATA_NAME}_URL
+    "${GEANT4_DATASETS_URL}/${_G4ADDDATA_FILENAME}.${_G4ADDDATA_VERSION}.${_G4ADDDATA_EXTENSION}"
+    )
 
   # - add it to the list of defined datasets
   set_property(GLOBAL APPEND PROPERTY GEANT4_DATASETS ${_G4ADDDATA_NAME})
@@ -177,6 +186,84 @@ function(geant4_dataset_property _name _prop _output)
 endfunction()
 
 #-----------------------------------------------------------------------
+# function geant4_dataset_isinstalled(<name>
+#                                     <root directory>
+#                                     <output variable>)
+#          Check if named dataset is installed under the root directory.
+#          Set output variable to TRUE if it is, FALSE otherwise
+#
+function(geant4_dataset_isinstalled _name _rdirectory _output)
+  geant4_dataset_property(${_name} DIRECTORY _dsdir)
+  set(_expectedpath ${_rdirectory}/${_dsdir})
+
+  if(IS_DIRECTORY ${_expectedpath})
+    set(${_output} TRUE PARENT_SCOPE)
+  else()
+    set(${_output} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
+#-----------------------------------------------------------------------
+# function geant4_install_dataset(<name> <destination> <timeout>)
+#          Download dataset with name to build directory, timing out the
+#          download after timeout seconds, and install it
+#          into its directory under the destination directory.
+#
+function(geant4_install_dataset _name _destination _timeout)
+  message(STATUS "Configuring download of missing dataset ${_name} (${_dsver})")
+  # - Extract needed dataset properties
+  geant4_dataset_property(${_name} DIRECTORY _ds_dir)
+  geant4_dataset_property(${_name} VERSION _ds_version)
+  geant4_dataset_property(${_name} URL _ds_url)
+  geant4_dataset_property(${_name} MD5SUM _ds_md5sum)
+
+  # - Dispatch to ExternalProject or our own implementation.
+  # Use of URL_MD5 *and* TIMEOUT require CMake 2.8.2 or higher.
+  if(${CMAKE_VERSION} VERSION_GREATER "2.8.1")
+    include(ExternalProject)
+    ExternalProject_Add(${_name}
+      PREFIX Externals/${_name}-${_ds_version}
+      SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}/${_ds_dir}
+      URL ${_ds_url}
+      URL_MD5 ${_ds_md5sum}
+      TIMEOUT ${_timeout}
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND ""
+      INSTALL_COMMAND ""
+      )
+  else()
+    _geant4_dataproject(${_name}
+      PREFIX Externals/${_name}-${_ds_version}
+      SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}
+      URL ${_ds_url}
+      URL_MD5 ${_ds_md5sum}
+      TIMEOUT ${_timeout}
+      )
+  endif()
+
+  # - Add install target, and report back paths...
+  install(DIRECTORY ${PROJECT_BINARY_DIR}/data/${_ds_dir}
+    DESTINATION ${_destination}
+    COMPONENT Data
+    )
+endfunction()
+
+#-----------------------------------------------------------------------
+# function geant4_reuse_dataset(<name> <destination> <is installed>)
+#          Reuse the dataset with name located at destination directory.
+#          If it is not installed, warn user that it will need installing
+#          manually in destination.
+#
+function(geant4_reuse_dataset _name _destination _ispresent)
+  geant4_dataset_property(${_name} VERSION _dsver)
+  if(_ispresent)
+    message(STATUS "Reusing dataset ${_name} (${_dsver})")
+  else()
+    message(STATUS "Configuring expected dataset ${_name} (${_dsver})")
+  endif()
+endfunction()
+
+#-----------------------------------------------------------------------
 # function geant4_configure_datasets(DESTINATION <dir>
 #                                    DOWNLOAD    <installmissing>
 #                                    TIMEOUT     <seconds>
@@ -189,108 +276,18 @@ function(geant4_configure_datasets)
   set(oneValueArgs DESTINATION DOWNLOAD TIMEOUT)
   cmake_parse_arguments(_G4CFGDSS "" "${oneValueArgs}" "" ${ARGN})
 
-  geant4_get_datasetnames(_knownds)
+  geant4_get_datasetnames(_dsnames)
 
-  foreach(_ds ${_knownds})
-    geant4_dataset_property(${_ds} DIRECTORY _dsdir)
-    geant4_dataset_property(${_ds} VERSION _dsver)
-
-    # - Does directory already exist?
-    set(_expected_path ${GEANT4_INSTALL_FULL_DATADIR}/${_dsdir})
-    if(NOT IS_DIRECTORY ${_expected_path})
-      if(_G4CFGDSS_DOWNLOAD)
-        message(STATUS "Configuring download of missing dataset ${_ds} (${_dsver})")
-        # - So here's where we set up a download+install job
-      else()
-        message(STATUS "Could not find dataset ${_ds} (${_dsver})")
-        # - Warn that dataset must be downloaded, though _expected_path
-        # will be used for configuration. May want to give single
-        # warning at end of processing for clarity.
-        # NB!!!! WARNING does NOT exist on cmake 2.6.4 so we use STATUS.
-      endif()
+  foreach(_ds ${_dsnames})
+    geant4_dataset_isinstalled(${_ds} "${_G4CFGDSS_DESTINATION}" _installed)
+    if(NOT _installed AND _G4CFGDSS_DOWNLOAD)
+      geant4_install_dataset(${_ds} "${_G4CFGDSS_DESTINATION}" ${_G4CFGDSS_TIMEOUT}) 
     else()
-      message(STATUS "Found dataset ${_ds} (${_dsver})")
-      # - Simple reuse case...
+      geant4_reuse_dataset(${_ds} "${_G4CFGDSS_DESTINATION}" ${_installed})
     endif()
   endforeach()
 endfunction()
 
-
-#-----------------------------------------------------------------------
-# TESTING SETUP FOR NEWSTYLE CONFIGURATION
-#-----------------------------------------------------------------------
-# - Define datasets
-geant4_add_dataset(
-  NAME      G4NDL 
-  VERSION   4.0 
-  FILENAME  G4NDL 
-  EXTENSION tar.gz
-  ENVVAR    G4NEUTRONHPDATA
-  MD5SUM    6d23aff98e5706af1dd7fff397969f37
-  )
-
-geant4_add_dataset(
-  NAME      G4EMLOW
-  VERSION   6.26 
-  FILENAME  G4EMLOW 
-  EXTENSION tar.gz
-  ENVVAR    G4LEDATA
-  MD5SUM    637f440a38b136f2e4df51f1cf0a02f9
-  )
-
-geant4_add_dataset(
-  NAME      PhotonEvaporation
-  VERSION   2.2
-  FILENAME  G4PhotonEvaporation
-  EXTENSION tar.gz
-  ENVVAR    G4LEVELGAMMADATA
-  MD5SUM    8010e7ce8a92564e38dd3418e6040563
-  )
-
-geant4_add_dataset(
-  NAME      RadioactiveDecay
-  VERSION   3.4
-  FILENAME  G4RadioactiveDecay
-  EXTENSION tar.gz
-  ENVVAR    G4RADIOACTIVEDATA
-  MD5SUM    a5b681048584631608ab0965b33c7959
-  )
-
-geant4_add_dataset(
-  NAME      G4ABLA
-  VERSION   3.0
-  FILENAME  G4ABLA
-  EXTENSION tar.gz
-  ENVVAR    G4ABLADATA
-  MD5SUM    d7049166ef74a592cb97df0ed4b757bd
-  )
-
-geant4_add_dataset(
-  NAME      G4NEUTRONXS
-  VERSION   1.1
-  FILENAME  G4NEUTRONXS
-  EXTENSION tar.gz
-  ENVVAR    G4NEUTRONXSDATA
-  MD5SUM    61ef3a05b56525db04e11820e3f603f1
-  )
-
-geant4_add_dataset(
-  NAME      G4PII
-  VERSION   1.3
-  FILENAME  G4PII
-  EXTENSION tar.gz
-  ENVVAR    G4PIIDATA
-  MD5SUM    05f2471dbcdf1a2b17cbff84e8e83b37
-  )
-
-geant4_add_dataset(
-  NAME      RealSurface
-  VERSION   1.0
-  FILENAME  RealSurface
-  EXTENSION tar.gz
-  ENVVAR    G4REALSURFACEDATA
-  MD5SUM    0dde95e00fcd3bcd745804f870bb6884
-  )
 
 #-----------------------------------------------------------------------
 # OLD STYLE FUNCTIONS - SOME MAY BE REUSED
@@ -300,7 +297,7 @@ geant4_add_dataset(
 #                               SOURCE_DIR wheretounpack
 #                               URL whattodownload
 #                               URL_MD5 expectedMD5ofdownload
-#                               TIMEOUT timeoutafter(seconds)
+#                               TIMEOUT timeoutafter(seconds))
 function(_geant4_dataproject _name)
   # - Parse arguments and create any extra needed variables
   set(oneValueArgs PREFIX SOURCE_DIR URL URL_MD5 TIMEOUT)
@@ -400,10 +397,10 @@ endfunction()
 
 #-----------------------------------------------------------------------
 # - Dispatch download task according to CMake version, and install data
-# function geant4_do_install_data(<repourl>,
-#                                 <dataset_tuple>,
-#                                 <prefix>,
-#                                 <download_timeout>
+# function geant4_do_install_data(<repourl>
+#                                 <dataset_tuple>
+#                                 <prefix>
+#                                 <download_timeout>)
 function(geant4_do_install_data _url _dataset _prefix _timeout)
   # Listify tuple and extract parameters
   string(REPLACE "/" ";" _tuple ${_dataset})
@@ -445,6 +442,80 @@ function(geant4_do_install_data _url _dataset _prefix _timeout)
     )
 endfunction()
 
+#-----------------------------------------------------------------------
+# DEFINE DATASETS - could put this into another file which we can include
+#-----------------------------------------------------------------------
+geant4_add_dataset(
+  NAME      G4NDL
+  VERSION   4.0
+  FILENAME  G4NDL
+  EXTENSION tar.gz
+  ENVVAR    G4NEUTRONHPDATA
+  MD5SUM    6d23aff98e5706af1dd7fff397969f37
+  )
+
+geant4_add_dataset(
+  NAME      G4EMLOW
+  VERSION   6.26
+  FILENAME  G4EMLOW
+  EXTENSION tar.gz
+  ENVVAR    G4LEDATA
+  MD5SUM    637f440a38b136f2e4df51f1cf0a02f9
+  )
+
+geant4_add_dataset(
+  NAME      PhotonEvaporation
+  VERSION   2.2
+  FILENAME  G4PhotonEvaporation
+  EXTENSION tar.gz
+  ENVVAR    G4LEVELGAMMADATA
+  MD5SUM    8010e7ce8a92564e38dd3418e6040563
+  )
+
+geant4_add_dataset(
+  NAME      RadioactiveDecay
+  VERSION   3.4
+  FILENAME  G4RadioactiveDecay
+  EXTENSION tar.gz
+  ENVVAR    G4RADIOACTIVEDATA
+  MD5SUM    a5b681048584631608ab0965b33c7959
+  )
+
+geant4_add_dataset(
+  NAME      G4ABLA
+  VERSION   3.0
+  FILENAME  G4ABLA
+  EXTENSION tar.gz
+  ENVVAR    G4ABLADATA
+  MD5SUM    d7049166ef74a592cb97df0ed4b757bd
+  )
+
+geant4_add_dataset(
+  NAME      G4NEUTRONXS
+  VERSION   1.1
+  FILENAME  G4NEUTRONXS
+  EXTENSION tar.gz
+  ENVVAR    G4NEUTRONXSDATA
+  MD5SUM    61ef3a05b56525db04e11820e3f603f1
+  )
+
+geant4_add_dataset(
+  NAME      G4PII
+  VERSION   1.3
+  FILENAME  G4PII
+  EXTENSION tar.gz
+  ENVVAR    G4PIIDATA
+  MD5SUM    05f2471dbcdf1a2b17cbff84e8e83b37
+  )
+
+geant4_add_dataset(
+  NAME      RealSurface
+  VERSION   1.0
+  FILENAME  RealSurface
+  EXTENSION tar.gz
+  ENVVAR    G4REALSURFACEDATA
+  MD5SUM    0dde95e00fcd3bcd745804f870bb6884
+  )
 
 #-----------------------------------------------------------------------
 # GEANT4 PHYSICS DATA - USER INTERFACE AND PROCESSING
@@ -474,7 +545,7 @@ option(GEANT4_INSTALL_DATA "Download/Install datasets missing from GEANT4_INSTAL
 #-----------------------------------------------------------------------
 # Provide an option for increasing the download timeout
 # Helps with large datasets over slow connections.
-set(GEANT4_INSTALL_DATA_TIMEOUT 1500 CACHE STRING "Timeout for Data Library download")
+set(GEANT4_INSTALL_DATA_TIMEOUT 1500 CACHE STRING "Timeout for Data Library downloads")
 mark_as_advanced(GEANT4_INSTALL_DATA_TIMEOUT)
 
 #-----------------------------------------------------------------------
@@ -487,11 +558,11 @@ geant4_configure_datasets(
   )
 
 # - Old style...
-if(GEANT4_INSTALL_DATA)
-  foreach(_dataset ${GEANT4_DATASETS})
-    geant4_do_install_data(${GEANT4_DATASETS_URL} ${_dataset} ${GEANT4_INSTALL_FULL_DATADIR} ${GEANT4_INSTALL_DATA_TIMEOUT})
-  endforeach()
-endif()
+#if(GEANT4_INSTALL_DATA)
+#  foreach(_dataset ${GEANT4_DATASETS})
+    #geant4_do_install_data(${GEANT4_DATASETS_URL} ${_dataset} ${GEANT4_INSTALL_FULL_DATADIR} ${GEANT4_INSTALL_DATA_TIMEOUT})
+    #  endforeach()
+    #endif()
 
 #-----------------------------------------------------------------------
 # C++ DATA API
