@@ -1,5 +1,77 @@
 # - Top level build script of Geant4Data
+# The following functions and macros are defined to help define, install,
+# reuse and export datasets and associated variables.
 #
+# FUNCTIONS AND MACROS
+# ====================
+# Public API
+# ----------
+# function geant4_get_datasetnames(<output variable>)
+#          Store list of currently known dataset names in output variable
+#
+# function geant4_tupleize_datasets(<output variable>)
+#          Set output variable to list of old-style dataset tuples.
+#          A tuple has the format:
+#            NAME/VERSION/FILENAME/EXTENSION/ENVVAR/MD5SUM
+#
+# function geant4_add_dataset(NAME      <id>
+#                             VERSION   <ver>
+#                             FILENAME  <file>
+#                             EXTENSION <ext>
+#                             ENVVAR    <varname>
+#                             MD5SUM    <md5>)
+#          Define a new dataset with the following properties
+#            NAME         common name of the dataset
+#            VERSION      dataset version
+#            FILENAME     name of packaged dataset file
+#            EXTENSION    extension of packaged dataset file
+#            ENVVAR       environment variable used by Geant4 code
+#                         to locate this dataset
+#            MD5SUM       MD5 hash of packaged dataset file
+#
+# function geant4_has_dataset(<name> <output variable>)
+#          Set output variable to TRUE if the named dataset exists
+#          in the list of known datasets.
+#
+# function geant4_dataset_property(<name> <property> <output variable>)
+#          Set output variable to value of dataset "name"'s property.
+#          If property does not exist, then value will be blank.
+#
+# function geant4_dataset_isinstalled(<name>
+#                                     <root directory>
+#                                     <output variable>)
+#          Check if named dataset is installed under the root directory.
+#          Set output variable to TRUE if it is, FALSE otherwise.
+#
+# function geant4_install_dataset(<name> <destination> <timeout>)
+#          Download dataset with name to build directory, timing out the
+#          download after timeout seconds, and install it
+#          into its directory under the destination directory.
+#
+# function geant4_reuse_dataset(<name> <destination> <is installed>)
+#          Reuse the dataset with name located at destination directory.
+#          If it is not installed, warn user that it will need installing
+#          manually in destination.
+#
+# function geant4_configure_datasets(DESTINATION <dir>
+#                                    DOWNLOAD    <installmissing>
+#                                    TIMEOUT     <seconds>
+#                                    )
+#          Perform the actual heavy lifting to configure each declared
+#          dataset for reuse or download as needed.
+#
+#
+# Private API
+# -----------
+# function _geant4_dataproject(<name>
+#                              PREFIX installdir
+#                              SOURCE_DIR wheretounpack
+#                              URL whattodownload
+#                              URL_MD5 expectedMD5ofdownload
+#                              TIMEOUT timeoutafter(seconds))
+#          Download, unpack and install a dataset for CMake <= 2.8.1
+#
+
 #-----------------------------------------------------------------------
 # Copyright 2012 Ben Morgan <bmorgan.warwick@gmail.com>
 # Copyright 2012 University of Warwick
@@ -82,7 +154,7 @@ define_property(GLOBAL PROPERTY "GEANT4_DATASETS"
 
 #-----------------------------------------------------------------------
 # function geant4_get_datasetnames(<output variable>)
-#          Set output variable to the list of dataset names
+#          Store list of currently known dataset names in output variable
 #
 function(geant4_get_datasetnames _output)
   get_property(_tmp GLOBAL PROPERTY GEANT4_DATASETS)
@@ -113,12 +185,21 @@ function(geant4_tupleize_datasets _output)
 endfunction()
 
 #-----------------------------------------------------------------------
-# function geant4_add_dataset(NAME id
-#                             VERSION ver
-#                             FILENAME file
-#                             EXTENSION ext
-#                             ENVVAR varname
-#                             MD5SUM md5)
+# function geant4_add_dataset(NAME      <id>
+#                             VERSION   <ver>
+#                             FILENAME  <file>
+#                             EXTENSION <ext>
+#                             ENVVAR    <varname>
+#                             MD5SUM    <md5>)
+#          Define a new dataset with the following properties
+#            NAME         common name of the dataset
+#            VERSION      dataset version
+#            FILENAME     name of packaged dataset file
+#            EXTENSION    extension of packaged dataset file
+#            ENVVAR       environment variable used by Geant4 code
+#                         to locate this dataset
+#            MD5SUM       MD5 hash of packaged dataset file
+#
 function(geant4_add_dataset)
   # - Parse arguments and create variables
   set(oneValueArgs NAME VERSION FILENAME EXTENSION ENVVAR MD5SUM)
@@ -157,8 +238,8 @@ endfunction()
 
 #-----------------------------------------------------------------------
 # function geant4_has_dataset(<name> <output variable>)
-#          Set output variable to TRUE if the named dataset is listed
-#          in the list of declared datasets
+#          Set output variable to TRUE if the named dataset exists
+#          in the list of known datasets.
 #
 function(geant4_has_dataset _name _output)
   get_property(_dslist GLOBAL PROPERTY GEANT4_DATASETS)
@@ -190,7 +271,7 @@ endfunction()
 #                                     <root directory>
 #                                     <output variable>)
 #          Check if named dataset is installed under the root directory.
-#          Set output variable to TRUE if it is, FALSE otherwise
+#          Set output variable to TRUE if it is, FALSE otherwise.
 #
 function(geant4_dataset_isinstalled _name _rdirectory _output)
   geant4_dataset_property(${_name} DIRECTORY _dsdir)
@@ -292,12 +373,14 @@ endfunction()
 #-----------------------------------------------------------------------
 # OLD STYLE FUNCTIONS - SOME MAY BE REUSED
 #-----------------------------------------------------------------------
-# function _geant4_data_project(<name>
-#                               PREFIX installdir
-#                               SOURCE_DIR wheretounpack
-#                               URL whattodownload
-#                               URL_MD5 expectedMD5ofdownload
-#                               TIMEOUT timeoutafter(seconds))
+# function _geant4_dataproject(<name>
+#                              PREFIX installdir
+#                              SOURCE_DIR wheretounpack
+#                              URL whattodownload
+#                              URL_MD5 expectedMD5ofdownload
+#                              TIMEOUT timeoutafter(seconds))
+#          Download, unpack and install a dataset for CMake <= 2.8.1
+#
 function(_geant4_dataproject _name)
   # - Parse arguments and create any extra needed variables
   set(oneValueArgs PREFIX SOURCE_DIR URL URL_MD5 TIMEOUT)
