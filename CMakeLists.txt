@@ -252,11 +252,11 @@ function(geant4_has_dataset _name _output)
 endfunction()
 
 #-----------------------------------------------------------------------
-# function geant4_dataset_property(<name> <property> <output variable>)
+# function geant4_get_dataset_property(<name> <property> <output variable>)
 #          Set output variable to value of dataset "name"'s property.
 #          If property does not exist, then value will be blank.
 #
-function(geant4_dataset_property _name _prop _output)
+function(geant4_get_dataset_property _name _prop _output)
   geant4_has_dataset(${_name} _dsexists)
   if(NOT _dsexists)
     message(FATAL_ERROR "non-existent dataset ${_name}")
@@ -267,6 +267,18 @@ function(geant4_dataset_property _name _prop _output)
 endfunction()
 
 #-----------------------------------------------------------------------
+# function geant4_set_dataset_property(<name> <property> <value>)
+#          Set value of dataset property to supplied value
+#
+function(geant4_set_dataset_property _name _prop _value)
+  geant4_has_dataset(${_name} _dsexists)
+  if(NOT _dsexists)
+    message(FATAL_ERROR "non-existent dataset ${_name}")
+  endif()
+  set_property(GLOBAL PROPERTY ${_name}_${_prop} "${_value}")
+endfunction()
+
+#-----------------------------------------------------------------------
 # function geant4_dataset_isinstalled(<name>
 #                                     <root directory>
 #                                     <output variable>)
@@ -274,7 +286,7 @@ endfunction()
 #          Set output variable to TRUE if it is, FALSE otherwise.
 #
 function(geant4_dataset_isinstalled _name _rdirectory _output)
-  geant4_dataset_property(${_name} DIRECTORY _dsdir)
+  geant4_get_dataset_property(${_name} DIRECTORY _dsdir)
   set(_expectedpath ${_rdirectory}/${_dsdir})
 
   if(IS_DIRECTORY ${_expectedpath})
@@ -291,13 +303,14 @@ endfunction()
 #          into its directory under the destination directory.
 #
 function(geant4_install_dataset _name _destination _timeout)
-  message(STATUS "Configuring download of missing dataset ${_name} (${_dsver})")
   # - Extract needed dataset properties
-  geant4_dataset_property(${_name} DIRECTORY _ds_dir)
-  geant4_dataset_property(${_name} VERSION _ds_version)
-  geant4_dataset_property(${_name} URL _ds_url)
-  geant4_dataset_property(${_name} MD5SUM _ds_md5sum)
+  geant4_get_dataset_property(${_name} DIRECTORY _ds_dir)
+  geant4_get_dataset_property(${_name} VERSION _ds_version)
+  geant4_get_dataset_property(${_name} URL _ds_url)
+  geant4_get_dataset_property(${_name} MD5SUM _ds_md5sum)
 
+  message(STATUS "Configuring download of missing dataset ${_name} (${_ds_version})")
+ 
   # - Dispatch to ExternalProject or our own implementation.
   # Use of URL_MD5 *and* TIMEOUT require CMake 2.8.2 or higher.
   if(${CMAKE_VERSION} VERSION_GREATER "2.8.1")
@@ -322,6 +335,10 @@ function(geant4_install_dataset _name _destination _timeout)
       )
   endif()
 
+  # - Configure the dataset's build and install locations
+  geant4_set_dataset_property(${_name} BUILD_DIR "${PROJECT_BINARY_DIR}/data/${_ds_dir}")
+  geant4_set_dataset_property(${_name} INSTALL_DIR "${_destination}/${_ds_dir}")
+
   # - Add install target, and report back paths...
   install(DIRECTORY ${PROJECT_BINARY_DIR}/data/${_ds_dir}
     DESTINATION ${_destination}
@@ -336,12 +353,18 @@ endfunction()
 #          manually in destination.
 #
 function(geant4_reuse_dataset _name _destination _ispresent)
-  geant4_dataset_property(${_name} VERSION _dsver)
+  geant4_get_dataset_property(${_name} VERSION _ds_ver)
+  geant4_get_dataset_property(${_name} DIRECTORY _ds_dir)
   if(_ispresent)
-    message(STATUS "Reusing dataset ${_name} (${_dsver})")
+    message(STATUS "Reusing dataset ${_name} (${_ds_ver})")
   else()
-    message(STATUS "Configuring expected dataset ${_name} (${_dsver})")
+    message(STATUS "Configure expected dataset ${_name} (${_ds_ver})")
   endif()
+
+  # - In either case, we know that both the build and install dirs
+  # will be the same...
+  geant4_set_dataset_property(${_name} BUILD_DIR "${_destination}/${_ds_dir}")
+  geant4_set_dataset_property(${_name} INSTALL_DIR "${_destination}/${_ds_dir}")
 endfunction()
 
 #-----------------------------------------------------------------------
@@ -678,36 +701,52 @@ message(STATUS "GEANT4_INSTALL_FULL_DATADIR : ${GEANT4_INSTALL_FULL_DATADIR}")
 #       Very simple macro to create the set of variables to be exported
 #       to the scripts via @VAR@ expansion.
 #       TODO : option to select between build and install tree variables?
-macro(geant4_data_create_exports)
-  set(_g4dev_data_dir "${GEANT4_BUILD_FULL_DATADIR}")
-  foreach(_dataset ${GEANT4_DATASETS})
-    string(REPLACE "/" ";" _tuple ${_dataset})
-    list(GET _tuple 0 _name)
-    list(GET _tuple 1 _version)
-    list(GET _tuple 4 _envvar)
-    set(${_envvar}_DIR "${_g4dev_data_dir}/${_name}${_version}")
+function(geant4_data_create_exports _loc)
+  geant4_get_datasetnames(_datasets)
+  foreach(_ds ${_datasets})
+    message(STATUS "exporting ${_ds}")
+    geant4_get_dataset_property(${_ds} ENVVAR _envvar)
+    geant4_get_dataset_property(${_ds} ${_loc} _buildloc)
+    set(${_envvar}_DIR ${_buildloc} PARENT_SCOPE)
   endforeach()
-endmacro()
+endfunction()
 
-if(GEANT4_INSTALL_DATA)
-  # - Build tree only fo now...
-  geant4_data_create_exports()
+# - Build tree...
+geant4_data_create_exports(BUILD_DIR)
 
-  configure_file(cmake/geant4data.sh.in 
-    ${PROJECT_BINARY_DIR}/geant4data.sh 
-    @ONLY
-    )
+configure_file(cmake/geant4data.sh.in 
+  ${PROJECT_BINARY_DIR}/geant4data.sh 
+  @ONLY
+  )
 
-  configure_file(cmake/geant4data.csh.in 
-    ${PROJECT_BINARY_DIR}/geant4data.csh 
-    @ONLY
-    )
+configure_file(cmake/geant4data.csh.in 
+  ${PROJECT_BINARY_DIR}/geant4data.csh 
+  @ONLY
+  )
 
-  configure_file(cmake/geant4data.gmk.in
-    ${PROJECT_BINARY_DIR}/geant4data.gmk
-    @ONLY
-    )
-endif()
+configure_file(cmake/geant4data.gmk.in
+  ${PROJECT_BINARY_DIR}/geant4data.gmk
+  @ONLY
+  )
+
+# - Install tree...
+geant4_data_create_exports(INSTALL_DIR)
+
+configure_file(cmake/geant4data.sh.in 
+  ${PROJECT_BINARY_DIR}/InstallTreeFiles/geant4data.sh 
+  @ONLY
+  )
+
+configure_file(cmake/geant4data.csh.in 
+  ${PROJECT_BINARY_DIR}/InstallTreeFiles/geant4data.csh 
+  @ONLY
+  )
+
+configure_file(cmake/geant4data.gmk.in
+  ${PROJECT_BINARY_DIR}/InstallTreeFiles/geant4data.gmk
+  @ONLY
+  )
+
 
 # - And we should be done...
 
