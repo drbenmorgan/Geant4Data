@@ -100,7 +100,7 @@ include(GNUInstallDirs)
 include(CMakeMacroParseArguments)
 
 #-----------------------------------------------------------------------
-# GEANT4 PHYSICS DATA - API AND GLOBAL CMAKE VARIABLES
+# GEANT4 PHYSICS DATA - GLOBAL CMAKE VARIABLES
 #-----------------------------------------------------------------------
 # URLs, directories and dataset entries
 # We may want these as properties so we can have a small API for
@@ -118,31 +118,8 @@ set(GEANT4_INSTALL_DATADIR_DEFAULT "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}
 # File containing dataset list
 set(GEANT4_DATASETS_DEFINITIONS "Geant4DatasetDefinitions")
 
-# Define the known datasets as a list of tuples, tuple entries being
-# forward slash separated. Messy.
-# Tuple entries:
-# 0 : Directory Name
-# 1 : Version
-# 2 : Filename
-# 3 : Filename Extension
-# 4 : Environment Variable
-# 5 : Expected MD5 sum File
-# 6 : (NOTIMPLEMENTEDYET) Marker for detecting existing install
-#
-set(GEANT4_DATASETS
-  G4NDL/4.0/G4NDL/tar.gz/G4NEUTRONHPDATA/6d23aff98e5706af1dd7fff397969f37
-  G4EMLOW/6.26/G4EMLOW/tar.gz/G4LEDATA/637f440a38b136f2e4df51f1cf0a02f9
-  PhotonEvaporation/2.2/G4PhotonEvaporation/tar.gz/G4LEVELGAMMADATA/8010e7ce8a92564e38dd3418e6040563
-  RadioactiveDecay/3.4/G4RadioactiveDecay/tar.gz/G4RADIOACTIVEDATA/a5b681048584631608ab0965b33c7959
-  G4ABLA/3.0/G4ABLA/tar.gz/G4ABLADATA/d7049166ef74a592cb97df0ed4b757bd
-  G4NEUTRONXS/1.1/G4NEUTRONXS/tar.gz/G4NEUTRONXSDATA/61ef3a05b56525db04e11820e3f603f1
-  G4PII/1.3/G4PII/tar.gz/G4PIIDATA/05f2471dbcdf1a2b17cbff84e8e83b37
-  RealSurface/1.0/RealSurface/tar.gz/G4REALSURFACEDATA/0dde95e00fcd3bcd745804f870bb6884
-  )
-
-
 #-----------------------------------------------------------------------
-# API for downloading and installing data
+# GEANT4 PHYSICS DATA - CMAKE API FOR DATASET HANDLING
 #-----------------------------------------------------------------------
 # Properties? Shouldn't clash with the tuplized variable...
 define_property(GLOBAL PROPERTY "GEANT4_DATASETS"
@@ -362,8 +339,7 @@ function(geant4_reuse_dataset _name _destination _ispresent)
     message(STATUS "Configure expected dataset ${_name} (${_ds_ver})")
   endif()
 
-  # - In either case, we know that both the build and install dirs
-  # will be the same...
+  # - In both cases, the build and install dirs are identical
   geant4_set_dataset_property(${_name} BUILD_DIR "${_destination}/${_ds_dir}")
   geant4_set_dataset_property(${_name} INSTALL_DIR "${_destination}/${_ds_dir}")
 endfunction()
@@ -395,9 +371,6 @@ function(geant4_configure_datasets)
   endforeach()
 endfunction()
 
-
-#-----------------------------------------------------------------------
-# OLD STYLE FUNCTIONS - SOME MAY BE REUSED
 #-----------------------------------------------------------------------
 # function _geant4_dataproject(<name>
 #                              PREFIX installdir
@@ -505,54 +478,6 @@ endfunction()
 
 
 #-----------------------------------------------------------------------
-# - Dispatch download task according to CMake version, and install data
-# function geant4_do_install_data(<repourl>
-#                                 <dataset_tuple>
-#                                 <prefix>
-#                                 <download_timeout>)
-function(geant4_do_install_data _url _dataset _prefix _timeout)
-  # Listify tuple and extract parameters
-  string(REPLACE "/" ";" _tuple ${_dataset})
-  list(GET _tuple 0 _name)
-  list(GET _tuple 1 _version)
-  list(GET _tuple 2 _filename)
-  list(GET _tuple 3 _extension)
-  list(GET _tuple 4 _envvar)
-  list(GET _tuple 5 _md5sum)
-
-  # - Dispatch to ExternalProject or our own implementation.
-  # Use of URL_MD5 *and* TIMEOUT require CMake 2.8.2 or higher.
-  if(${CMAKE_VERSION} VERSION_GREATER "2.8.1")
-    include(ExternalProject)
-    ExternalProject_Add(${_name}
-      PREFIX Externals/${_filename}-${_version}
-      SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}/${_name}${_version}
-      URL ${_url}/${_filename}.${_version}.${_extension}
-      URL_MD5 ${_md5sum}
-      TIMEOUT ${_timeout}
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND ""
-      INSTALL_COMMAND ""
-      )
-  else()
-    _geant4_dataproject(${_name}
-      PREFIX Externals/${_filename}-${_version}
-      SOURCE_DIR ${GEANT4_BUILD_FULL_DATADIR}
-      URL ${_url}/${_filename}.${_version}.${_extension}
-      URL_MD5 ${_md5sum}
-      TIMEOUT ${_timeout}
-      )
-  endif()
-
-  # - Add install target, and report back paths...
-  install(DIRECTORY ${PROJECT_BINARY_DIR}/data/${_name}${_version}
-    DESTINATION ${_prefix}
-    COMPONENT Data
-    )
-endfunction()
-
-
-#-----------------------------------------------------------------------
 # GEANT4 PHYSICS DATA - USER INTERFACE AND PROCESSING
 #-----------------------------------------------------------------------
 # User options for installing data
@@ -591,13 +516,6 @@ geant4_configure_datasets(
   DOWNLOAD    ${GEANT4_INSTALL_DATA}
   TIMEOUT     ${GEANT4_INSTALL_DATA_TIMEOUT}
   )
-
-# - Old style...
-#if(GEANT4_INSTALL_DATA)
-#  foreach(_dataset ${GEANT4_DATASETS})
-    #geant4_do_install_data(${GEANT4_DATASETS_URL} ${_dataset} ${GEANT4_INSTALL_FULL_DATADIR} ${GEANT4_INSTALL_DATA_TIMEOUT})
-    #  endforeach()
-    #endif()
 
 #-----------------------------------------------------------------------
 # C++ DATA API
