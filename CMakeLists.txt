@@ -57,6 +57,19 @@ message(STATUS "GEANT4_INSTALL_FULL_DATADIR : ${GEANT4_INSTALL_FULL_DATADIR}")
 # 4) geant4-config
 # 5) Geant4Config.cmake
 #
+# Shell scripts are slightly awkward on Geant4 because we need to
+# create a code block - each line of the block setting an environment
+# variable
+# - SH only...
+geant4_get_datasetnames(_datasets)
+set(G4DATA_EXPORTS )
+foreach(_ds ${_datasets})
+  geant4_get_dataset_property(${_ds} ENVVAR _envvar)
+  geant4_get_dataset_property(${_ds} BUILD_DIR _buildloc)
+  list(APPEND G4DATA_EXPORTS "export ${_envvar}=\"${_buildloc}\"")
+endforeach()
+string(REPLACE ";" "\n" G4DATA_EXPORTS "${G4DATA_EXPORTS}")
+
 #-----------------------------------------------------------------------
 # macro geant4_data_exports()
 #       Very simple macro to create the set of variables to be exported
