@@ -60,8 +60,13 @@ message(STATUS "GEANT4_INSTALL_FULL_DATADIR : ${GEANT4_INSTALL_FULL_DATADIR}")
 # Shell scripts are slightly awkward on Geant4 because we need to
 # create a code block - each line of the block setting an environment
 # variable
+
+# - Build Tree...
 # - SH only...
 geant4_get_datasetnames(_datasets)
+string(REPLACE ";" " " GEANT4_DATASET_LIST "${_datasets}")
+
+
 set(G4DATA_EXPORTS )
 foreach(_ds ${_datasets})
   geant4_get_dataset_property(${_ds} ENVVAR _envvar)
@@ -70,23 +75,6 @@ foreach(_ds ${_datasets})
 endforeach()
 string(REPLACE ";" "\n" G4DATA_EXPORTS "${G4DATA_EXPORTS}")
 
-#-----------------------------------------------------------------------
-# macro geant4_data_exports()
-#       Very simple macro to create the set of variables to be exported
-#       to the scripts via @VAR@ expansion.
-#       TODO : option to select between build and install tree variables?
-function(geant4_data_create_exports _loc)
-  geant4_get_datasetnames(_datasets)
-  foreach(_ds ${_datasets})
-    message(STATUS "exporting ${_ds}")
-    geant4_get_dataset_property(${_ds} ENVVAR _envvar)
-    geant4_get_dataset_property(${_ds} ${_loc} _buildloc)
-    set(${_envvar}_DIR ${_buildloc} PARENT_SCOPE)
-  endforeach()
-endfunction()
-
-# - Build tree...
-geant4_data_create_exports(BUILD_DIR)
 
 configure_file(cmake/geant4data.sh.in 
   ${PROJECT_BINARY_DIR}/geant4data.sh 
@@ -103,8 +91,19 @@ configure_file(cmake/geant4data.gmk.in
   @ONLY
   )
 
+
 # - Install tree...
-geant4_data_create_exports(INSTALL_DIR)
+# - SH only...
+geant4_get_datasetnames(_datasets)
+set(G4DATA_EXPORTS )
+foreach(_ds ${_datasets})
+  geant4_get_dataset_property(${_ds} ENVVAR _envvar)
+  geant4_get_dataset_property(${_ds} INSTALL_DIR _buildloc)
+  # - We also need to calculate a relative path here at some point...
+  list(APPEND G4DATA_EXPORTS "export ${_envvar}=\"${_buildloc}\"")
+endforeach()
+string(REPLACE ";" "\n" G4DATA_EXPORTS "${G4DATA_EXPORTS}")
+
 
 configure_file(cmake/geant4data.sh.in 
   ${PROJECT_BINARY_DIR}/InstallTreeFiles/geant4data.sh 
@@ -120,7 +119,6 @@ configure_file(cmake/geant4data.gmk.in
   ${PROJECT_BINARY_DIR}/InstallTreeFiles/geant4data.gmk
   @ONLY
   )
-
 
 # - And we should be done...
 

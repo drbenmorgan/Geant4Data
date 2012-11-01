@@ -9,15 +9,7 @@
 #    (See accompanying file LICENSE_1_0.txt or copy at
 #          http://www.boost.org/LICENSE_1_0.txt)
 
-# - Each dataset has its own variable and path
-export G4NEUTRONHPDATA="@G4NEUTRONHPDATA_DIR@"
-export G4LEDATA="@G4LEDATA_DIR@"
-export G4LEVELGAMMADATA="@G4LEVELGAMMADATA_DIR@"
-export G4RADIOACTIVEDATA="@G4RADIOACTIVEDATA_DIR@"
-export G4ABLADATA="@G4ABLADATA_DIR@"
-export G4NEUTRONXSDATA="@G4NEUTRONXSDATA_DIR@"
-export G4PIIDATA="@G4PIIDATA_DIR@"
-export G4REALSURFACEDATA="@G4REALSURFACEDATA_DIR@"
-
-# - Experiment with single block based export
+# - Each dataset has its own entry, but we create these entries
+# dynamically in CMake and export here so we don't have to hard code
+# the list of datasets.
 @G4DATA_EXPORTS@

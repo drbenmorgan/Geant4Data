@@ -13,6 +13,7 @@
 #          Set output variable to list of old-style dataset tuples.
 #          A tuple has the format:
 #            NAME/VERSION/FILENAME/EXTENSION/ENVVAR/MD5SUM
+#          Provided for backward compatibility.
 #
 # function geant4_add_dataset(NAME      <id>
 #                             VERSION   <ver>
@@ -33,9 +34,19 @@
 #          Set output variable to TRUE if the named dataset exists
 #          in the list of known datasets.
 #
-# function geant4_dataset_property(<name> <property> <output variable>)
+# function geant4_get_dataset_property(<name> <property> <output variable>)
 #          Set output variable to value of dataset "name"'s property.
 #          If property does not exist, then value will be blank.
+#
+# function geant4_set_dataset_property(<name> <property> <value>)
+#          Set value of dataset property to supplied value
+#
+# function geant4_configure_datasets(DESTINATION <dir>
+#                                    DOWNLOAD    <installmissing>
+#                                    TIMEOUT     <seconds>
+#                                    )
+#          Perform the actual heavy lifting to configure each declared
+#          dataset for reuse or download as needed.
 #
 # function geant4_dataset_isinstalled(<name>
 #                                     <root directory>
@@ -53,13 +64,6 @@
 #          If it is not installed, warn user that it will need installing
 #          manually in destination.
 #
-# function geant4_configure_datasets(DESTINATION <dir>
-#                                    DOWNLOAD    <installmissing>
-#                                    TIMEOUT     <seconds>
-#                                    )
-#          Perform the actual heavy lifting to configure each declared
-#          dataset for reuse or download as needed.
-#
 #
 # Private API
 # -----------
@@ -69,7 +73,11 @@
 #                              URL whattodownload
 #                              URL_MD5 expectedMD5ofdownload
 #                              TIMEOUT timeoutafter(seconds))
-#          Download, unpack and install a dataset for CMake <= 2.8.1
+#          Download, unpack and install a dataset for CMake < 2.8.2
+#          This largely replicates the functionality of ExternalProject
+#          so that CMake 2.6.4 can still be supported (It is also needed
+#          for CMake 2.8.{0,1} where ExternalProject does not provide MD5
+#          validation.
 #
 
 #-----------------------------------------------------------------------
@@ -255,6 +263,7 @@ function(geant4_configure_datasets)
   # - Load configuration
   include(${GEANT4_DATASETS_DEFINITIONS})
   geant4_get_datasetnames(_dsnames)
+  set(_notinstalled )
 
   foreach(_ds ${_dsnames})
     geant4_dataset_isinstalled(${_ds} "${_G4CFGDSS_DESTINATION}" _installed)
@@ -262,8 +271,64 @@ function(geant4_configure_datasets)
       geant4_install_dataset(${_ds} "${_G4CFGDSS_DESTINATION}" ${_G4CFGDSS_TIMEOUT}) 
     else()
       geant4_reuse_dataset(${_ds} "${_G4CFGDSS_DESTINATION}" ${_installed})
+      if(NOT _installed)
+        list(APPEND _notinstalled ${_ds})
+      endif()
     endif()
   endforeach()
+
+  # - Produce report on datasets needing manual install, advising
+  # user on how to handle these.
+  # Yes, it's long, but at least it's clear :-)
+  if(_notinstalled)
+    message("  *WARNING*")
+    message("    Geant4 has been pre-configured to look for datasets")
+    message("    in the directory:")
+    message(" ")
+    message("    ${_G4CFGDSS_DESTINATION}")
+    message(" ")
+    message("    but the following datasets are NOT present on disk at")
+    message("    that location:")
+    message(" ")
+    foreach(_missing ${_notinstalled})
+      geant4_get_dataset_property(${_missing} VERSION _vers)
+      message("    ${_missing} (${_vers})")
+    endforeach()
+    message(" ")
+    message("    If you want to have these datasets installed automatically")
+    message("    simply re-run cmake and set the GEANT4_INSTALL_DATA")
+    message("    variable to ON. This will configure the build to download")
+    message("    and install these datasets for you. For example, on the")
+    message("    command line, do:")
+    message(" ")
+    message("    cmake -DGEANT4_INSTALL_DATA=ON <otherargs>")
+    message(" ")
+    message("    The variable can also be toggled in ccmake or cmake-gui.")
+    message("    If you're running on a Windows system, this is the best")
+    message("    solution as CMake will unpack the datasets for you")
+    message("    without any further software being required")
+    message(" ")
+    message("    Alternatively, you can install these datasets manually")
+    message("    now or after you have installed Geant4. To do this,")
+    message("    download the following files:")
+    message(" ")
+    foreach(_missing ${_notinstalled})
+      geant4_get_dataset_property(${_missing} URL _url)
+      message("    ${_url}")
+    endforeach()
+    message(" ")
+    message("    and unpack them under the directory:")
+    message(" ")
+    message("    ${_G4CFGDSS_DESTINATION}")
+    message(" ")
+    message("    As we supply the datasets packed in gzipped tar files,")
+    message("    you will need the 'tar' utility to unpack them.")
+    message(" ")
+    message("    Nota bene: Missing datasets will not affect or break")
+    message("               compilation and installation of the Geant4")
+    message("               libraries.")
+    message(" ")
+  endif()
 endfunction()
 
 #-----------------------------------------------------------------------
@@ -346,7 +411,7 @@ function(geant4_reuse_dataset _name _destination _ispresent)
   if(_ispresent)
     message(STATUS "Reusing dataset ${_name} (${_ds_ver})")
   else()
-    message(STATUS "Configure expected dataset ${_name} (${_ds_ver})")
+    message(STATUS "Pre-configuring dataset ${_name} (${_ds_ver})")
   endif()
 
   # - In both cases, the build and install dirs are identical
