@@ -7,5 +7,7 @@
 #          http://www.boost.org/LICENSE_1_0.txt)
 #----------------------------------------------------------------------------
 
+add_library(G4Data SHARED G4DataLibrary.hh G4DataLibrary.cc)
 add_executable(BasicUsage BasicUsage.cpp)
+target_link_libraries(BasicUsage G4Data)
 
